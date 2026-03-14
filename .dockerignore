@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+dashboard.html
+growth_execution_plan.md
+lead_triage.md
+trial_followup_plan.md
+sales_conversion_plan.md
+crm_dashboard.md

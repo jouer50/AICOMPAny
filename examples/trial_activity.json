@@ -1,0 +1,22 @@
+{
+  "trials": [
+    {
+      "lead_id": "lead_002",
+      "activated": true,
+      "days_since_signup": 2,
+      "used_features": ["教练指令", "执行计划"],
+      "risk_signals": ["尚未体验持仓诊断"],
+      "recommended_followup_day": "Day 3",
+      "recommended_goal": "引导用户说出自己的痛点并体验持仓诊断"
+    },
+    {
+      "lead_id": "lead_003",
+      "activated": true,
+      "days_since_signup": 6,
+      "used_features": ["教练指令", "执行计划", "持仓诊断", "行为账单"],
+      "risk_signals": [],
+      "recommended_followup_day": "Day 6",
+      "recommended_goal": "推进正式版成交"
+    }
+  ]
+}

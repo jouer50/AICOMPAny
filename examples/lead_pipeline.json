@@ -1,0 +1,34 @@
+{
+  "leads": [
+    {
+      "id": "lead_001",
+      "source": "微信公众号",
+      "name": "A股复盘用户",
+      "stage": "warm",
+      "intent_score": 72,
+      "pain_points": ["追高", "盘后不复盘"],
+      "last_action": "阅读了交易纪律长文并点击试用按钮",
+      "next_best_action": "引导申请试用"
+    },
+    {
+      "id": "lead_002",
+      "source": "X",
+      "name": "短线交易用户",
+      "stage": "trial",
+      "intent_score": 81,
+      "pain_points": ["仓位太重", "止损拖延"],
+      "last_action": "已提交试用申请",
+      "next_best_action": "引导先体验教练指令和持仓诊断"
+    },
+    {
+      "id": "lead_003",
+      "source": "雪球",
+      "name": "持仓诊断用户",
+      "stage": "hot",
+      "intent_score": 90,
+      "pain_points": ["持仓集中", "结构看不清"],
+      "last_action": "询问正式版价格和功能区别",
+      "next_best_action": "推进正式版转化"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+services:
+  robot-company:
+    build: .
+    container_name: robot-company
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"

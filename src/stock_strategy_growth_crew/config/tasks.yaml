@@ -1,0 +1,200 @@
+growth_strategy_task:
+  description: >
+    基于以下输入生成一周内容增长计划：
+    - 产品：{product_name}
+    - 产品描述：{product_summary}
+    - 目标用户：{target_audience}
+    - 主要渠道：{channels}
+    - 品牌语气：{brand_tone}
+    - 目标 CTA：{primary_cta}
+    - 本周主题：{campaign_theme}
+
+    产出内容必须围绕“股票交易策略教练系统”的教育、复盘、方法和纪律训练价值，
+    不得写成荐股服务或收益承诺。
+
+    参考知识文件：
+    - knowledge/user_preference.txt
+    - knowledge/compliance_rules.md
+    - knowledge/channel_playbooks.md
+    - examples/market_signals.json
+    - examples/competitor_snapshots.json
+
+    如果需要，请使用工具读取热点和竞品信号，再将它们纳入本周策略。
+  expected_output: >
+    一份 markdown 增长策略草案，包含：
+    1. 本周核心信息
+    2. 5 个内容支柱
+    3. 每个平台的推荐角度
+    4. 3 个可测试的 CTA
+    5. 本周热点/竞品信号摘要
+  agent: market_strategist
+
+compliance_review_task:
+  description: >
+    审核增长策略草案，删除或重写所有涉及以下风险的内容：
+    - 直接或变相荐股
+    - 收益承诺、胜率承诺、稳赚表达
+    - 暗示内幕、老师带单、包赚
+    - 没有资质却像投顾服务的表述
+
+    输出一版“已过审内容底稿”，并单独列出被你修改的高风险表达及原因。
+    审核时必须以 knowledge/compliance_rules.md 为准。
+  expected_output: >
+    一份 markdown 文档，包含：
+    1. 合规后的内容底稿
+    2. 风险表达替换表
+  agent: compliance_officer
+
+x_post_task:
+  description: >
+    根据合规后的内容底稿，为 X 生成：
+    - 3 条单帖
+    - 1 条 6-8 推线程
+    - 每条内容的 CTA
+
+    风格要短、锐利、有钩子，但不能夸张承诺。
+    写作结构优先参考 knowledge/channel_playbooks.md 中的 X 模板。
+    如有相关热点，可使用工具辅助选题。
+  expected_output: >
+    markdown 文档，含 X 单帖、线程和 CTA。
+  agent: x_editor
+
+xiaohongshu_post_task:
+  description: >
+    根据合规后的内容底稿，为小红书生成：
+    - 3 个笔记标题
+    - 1 篇完整笔记
+    - 封面文案建议
+    - 标签建议
+
+    表达要更像经验分享、方法总结和认知提升，不要写成硬广。
+    写作结构优先参考 knowledge/channel_playbooks.md 中的小红书模板。
+    如有相关热点，可使用工具辅助选题。
+  expected_output: >
+    markdown 文档，含标题、正文、封面文案和标签。
+  agent: xiaohongshu_editor
+
+wechat_post_task:
+  description: >
+    根据合规后的内容底稿，为微信公众号生成：
+    - 1 篇完整文章
+    - 摘要
+    - 标题备选 3 个
+    - 文末 CTA
+
+    文章结构要适合沉淀信任和引导私域转化。
+    写作结构优先参考 knowledge/channel_playbooks.md 中的公众号模板。
+    如有相关热点，可使用工具辅助选题。
+  expected_output: >
+    markdown 文档，含完整公众号文章和 CTA。
+  agent: wechat_editor
+
+xueqiu_post_task:
+  description: >
+    根据合规后的内容底稿，为雪球生成：
+    - 2 条观点帖
+    - 1 条复盘型长帖
+    - 每条内容的互动问题
+
+    重点突出框架、复盘和风控，不写带单语气。
+    写作结构优先参考 knowledge/channel_playbooks.md 中的雪球模板。
+    如有相关热点，可使用工具辅助选题。
+  expected_output: >
+    markdown 文档，含雪球短帖、长帖和互动问题。
+  agent: xueqiu_editor
+
+ops_summary_task:
+  description: >
+    汇总所有平台产出，整理成一份执行清单。
+    给出：
+    - 发布时间建议
+    - 每个平台的目标动作
+    - 建议跟踪的指标
+    - 需要人工终审的风险点
+
+    汇总时必须显式保留“人工终审”这一环节，不允许输出全自动直接发布建议。
+    如果需要，请使用工具读取热点和竞品信号，用于安排优先级和周排期。
+  expected_output: >
+    一份 markdown 执行总表，包含：
+    1. 一周发布日历表（周一到周日）
+    2. 渠道发布清单
+    3. CTA 总览
+    4. 指标面板建议
+    5. 人工终审注意事项
+    6. 下一轮迭代建议
+  agent: ops_analyst
+
+lead_triage_task:
+  description: >
+    读取 examples/lead_pipeline.json，整理本周需要重点承接的线索。
+    你需要按阶段区分：
+    - warm
+    - trial
+    - hot
+
+    输出时明确：
+    - 哪些线索应该引导关注
+    - 哪些线索应该引导试用
+    - 哪些线索应该推进成交
+  expected_output: >
+    一份 markdown 线索分层表，包含：
+    1. 线索优先级
+    2. 每条线索的下一步动作
+    3. 建议使用的渠道
+  agent: lead_manager
+
+trial_success_task:
+  description: >
+    读取 examples/trial_activity.json，并结合 7_day_followup_messages.md，
+    为当前试用用户安排后续跟进。
+
+    输出时要明确：
+    - 当前激活状态
+    - 下一条要发的消息
+    - 目标是激活、留存还是推进成交
+  expected_output: >
+    一份 markdown 试用跟进表，包含：
+    1. 试用用户名单
+    2. 当前使用状态
+    3. 下一步推荐消息
+    4. 跟进目标
+  agent: trial_success_manager
+
+sales_conversion_task:
+  description: >
+    基于线索分层结果和试用跟进结果，识别本周最值得推进的付费用户。
+    参考：
+    - knowledge/sales_conversion_playbook.md
+    - knowledge/7_day_followup_messages.md
+
+    输出时明确：
+    - 哪些人是高意向
+    - 应该发送什么成交话术
+    - 是否适合发正式版说明
+  expected_output: >
+    一份 markdown 成交推进表，包含：
+    1. 高意向用户名单
+    2. 成交理由
+    3. 推荐话术
+    4. 本周付费推进动作
+  agent: sales_manager
+
+crm_dashboard_task:
+  description: >
+    汇总以下信息，生成一份本地 CRM 周看板：
+    - 线索分层结果
+    - 试用跟进结果
+    - 成交推进结果
+    - examples/crm_dashboard_template.md
+
+    你必须输出一份适合老板和运营团队直接查看的 markdown 看板。
+    内容必须包含：
+    - 本周总览
+    - 线索分层
+    - 试用跟进
+    - 成交推进
+    - 本周待办
+    - 风险提醒
+  expected_output: >
+    一份 markdown CRM 周看板，能直接作为本周跟进面板使用。
+  agent: ops_analyst

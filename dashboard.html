@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>机器人公司 Dashboard</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --panel-2: #f8f5ee;
+      --text: #161616;
+      --muted: #6a655f;
+      --line: #ddd5ca;
+      --accent: #184e3b;
+      --accent-2: #d8eadf;
+      --accent-3: #eef6f2;
+      --shadow: 0 18px 50px rgba(26, 28, 24, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      background:
+        radial-gradient(circle at top left, #efe6da 0, transparent 28%),
+        radial-gradient(circle at top right, #ddeee6 0, transparent 26%),
+        var(--bg);
+      color: var(--text);
+    }
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+    }
+    .sidebar {
+      padding: 22px 18px;
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,253,248,.98), rgba(248,245,238,.96));
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+    }
+    .brand {
+      background: linear-gradient(135deg, #153e30, #26624b);
+      color: white;
+      border-radius: 22px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+    .brand h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.02;
+      letter-spacing: -.04em;
+    }
+    .brand p {
+      margin: 0;
+      color: rgba(255,255,255,.82);
+      line-height: 1.6;
+      font-size: 13px;
+    }
+    .sidebar-meta {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .meta-card {
+      background: rgba(255,255,255,.72);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px 14px;
+    }
+    .meta-card b {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .meta-card span {
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .main {
+      padding: 26px 22px 34px;
+    }
+    .topbar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    .topbar h2 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      letter-spacing: -.04em;
+    }
+    .topbar p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 14px;
+    }
+    .card {
+      background: rgba(255,253,248,.88);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(6px);
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .overview {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+    .stat {
+      background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,245,238,.9));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .stat b {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .stat span {
+      font-size: 24px;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .stat small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .tabs {
+      display: grid;
+      gap: 10px;
+    }
+    .tab {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.7);
+      color: var(--text);
+      padding: 12px 14px;
+      border-radius: 18px;
+      cursor: pointer;
+      text-align: left;
+      display: grid;
+      gap: 4px;
+    }
+    .tab.active {
+      background: var(--accent-3);
+      color: var(--text);
+      border-color: #b8d7c9;
+      box-shadow: inset 0 0 0 1px rgba(24,78,59,.12);
+    }
+    .tab-kicker {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .tab strong {
+      font-size: 15px;
+    }
+    .tab small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .panel {
+      display: none;
+      background: rgba(255,253,248,.92);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px;
+      min-height: 65vh;
+    }
+    .panel.active { display: block; }
+    .panel-grid {
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+    .panel-header h2 {
+      margin: 0;
+      font-size: 22px;
+    }
+    .panel-header span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      line-height: 1.6;
+      font-size: 13px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      max-height: 70vh;
+      overflow: auto;
+    }
+    .mini-title {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+    .bullets {
+      display: grid;
+      gap: 10px;
+    }
+    .bullet {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 13px;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .funnel {
+      display: grid;
+      gap: 10px;
+    }
+    .funnel-row {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px;
+    }
+    .funnel-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .bar {
+      height: 12px;
+      border-radius: 999px;
+      background: #efe8dc;
+      overflow: hidden;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #184e3b, #4b8b6f);
+    }
+    .mini-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: #efe8dc;
+      overflow: hidden;
+    }
+    .mini-bar > span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #3e6b58, #79a58e);
+    }
+    .source-grid {
+      display: grid;
+      gap: 10px;
+    }
+    .source-row {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .source-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .filters {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .filter-chip {
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .filter-chip span {
+      color: var(--muted);
+      margin-left: 4px;
+      font-weight: 600;
+    }
+    .filter-chip.active {
+      background: var(--accent-3);
+      border-color: #b8d7c9;
+      color: var(--accent);
+    }
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: white;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 620px;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid #ebe3d8;
+      vertical-align: top;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    th {
+      font-size: 12px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: #fcfaf5;
+      position: sticky;
+      top: 0;
+    }
+    td small {
+      color: var(--muted);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .stage-hot {
+      background: #fff1ea;
+      color: #9c3c14;
+      border-color: #f3cfbf;
+    }
+    .stage-warm {
+      background: #fff8e7;
+      color: #8a6400;
+      border-color: #ead9a3;
+    }
+    .stage-trial {
+      background: #eef6ff;
+      color: #16508f;
+      border-color: #c8daf4;
+    }
+    .stage-cold {
+      background: #f2f3f5;
+      color: #5f6470;
+      border-color: #d9dce2;
+    }
+    .stage-paid {
+      background: #edf8f2;
+      color: #176042;
+      border-color: #c3e2d2;
+    }
+    .is-on {
+      background: #edf8f2;
+      color: #176042;
+      border-color: #c3e2d2;
+    }
+    .is-off {
+      background: #f2f3f5;
+      color: #5f6470;
+      border-color: #d9dce2;
+    }
+    .risk-card {
+      background: linear-gradient(180deg, #fff8f4, #fffdf9);
+      border: 1px solid #ecd4c4;
+    }
+    .trial-list {
+      display: grid;
+      gap: 12px;
+    }
+    .trial-card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .trial-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+      margin-bottom: 8px;
+    }
+    .trial-head strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 2px;
+    }
+    .trial-head small,
+    .trial-meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .trial-meta {
+      margin-bottom: 12px;
+    }
+    .trial-block {
+      display: grid;
+      gap: 4px;
+      margin-top: 10px;
+    }
+    .trial-block b {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .trial-block span {
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .trend-grid {
+      display: grid;
+      gap: 10px;
+    }
+    .trend-row {
+      display: grid;
+      grid-template-columns: 128px 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+    .trend-label {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .trend-card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+    .trend-card strong {
+      display: block;
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+    .trend-card small {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .note {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: var(--accent-2);
+      color: #16382b;
+      font-size: 14px;
+      line-height: 1.6;
+      border: 1px solid #bdd8c8;
+    }
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .overview { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .panel-grid { grid-template-columns: 1fr; }
+      .topbar { flex-direction: column; align-items: stretch; }
+      .topbar h2 { font-size: 28px; }
+    }
+    @media (max-width: 640px) {
+      .main { padding: 18px 14px 28px; }
+      .stats { grid-template-columns: 1fr; }
+      .brand h1 { font-size: 24px; }
+      .tab { border-radius: 14px; }
+      .card, .panel { padding: 16px; }
+      .tabs {
+        grid-auto-flow: column;
+        grid-auto-columns: 220px;
+        overflow: auto;
+      }
+      .trend-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <section class="brand">
+        <h1>Robot Company</h1>
+        <p>面向 A 股散户的内容增长、试用转化与付费推进后台。</p>
+      </section>
+      <section class="sidebar-meta">
+        <div class="meta-card"><b>公司类型</b><span>内容 + 销售机器人公司</span></div>
+        <div class="meta-card"><b>目标用户</b><span>A股散户</span></div>
+        <div class="meta-card"><b>主转化路径</b><span>关注 -> 试用 -> 付费</span></div>
+        <div class="meta-card"><b>当前模式</b><span>本地 Demo</span></div>
+      </section>
+      <nav class="tabs">
+        
+            <button class="tab active" data-panel="panel-0">
+              <span class="tab-kicker">模块 1</span>
+              <strong>CEO看板</strong>
+              <small>crm_dashboard.md</small>
+            </button>
+            
+            <button class="tab " data-panel="panel-1">
+              <span class="tab-kicker">模块 2</span>
+              <strong>增长计划</strong>
+              <small>growth_execution_plan.md</small>
+            </button>
+            
+            <button class="tab " data-panel="panel-2">
+              <span class="tab-kicker">模块 3</span>
+              <strong>线索分层</strong>
+              <small>lead_triage.md</small>
+            </button>
+            
+            <button class="tab " data-panel="panel-3">
+              <span class="tab-kicker">模块 4</span>
+              <strong>试用跟进</strong>
+              <small>trial_followup_plan.md</small>
+            </button>
+            
+            <button class="tab " data-panel="panel-4">
+              <span class="tab-kicker">模块 5</span>
+              <strong>成交推进</strong>
+              <small>sales_conversion_plan.md</small>
+            </button>
+            
+      </nav>
+    </aside>
+
+    <main class="main">
+      <section class="topbar">
+        <div>
+          <h2>运营驾驶台</h2>
+          <p>你现在看到的是这家机器人公司一次 demo run 的后台结果。左侧切换模块，右侧查看本周运营、线索、试用与成交推进。</p>
+        </div>
+        <div class="card">
+          <strong>刷新方式</strong><br>
+          <span style="color:var(--muted);font-size:13px;line-height:1.6;">重新运行 demo，然后刷新这个页面即可。</span>
+        </div>
+      </section>
+
+      <section class="stats">
+        <div class="stat"><b>活跃线索</b><span>3</span><small>来自内容与渠道承接</small></div><div class="stat"><b>试用用户</b><span>1</span><small>进入试用流程</small></div><div class="stat"><b>高意向</b><span>1</span><small>优先推进成交</small></div><div class="stat"><b>已激活试用</b><span>2</span><small>已体验核心功能</small></div>
+      </section>
+
+      <section class="overview">
+        <div class="card">
+          <h3 class="mini-title">本周优先任务</h3>
+          <div class="bullets">
+            <div class="bullet">优先跟进 `hot` 线索，推进正式版成交</div><div class="bullet">督促 `trial` 用户先体验教练指令和持仓诊断</div><div class="bullet">把高表现内容 CTA 统一到公众号关注和试用申请</div>
+          </div>
+        </div>
+        <div class="stack">
+          <div class="card">
+            <h3 class="mini-title">用户漏斗</h3>
+            <div class="funnel">
+              <div class="funnel-row"><div class="funnel-label"><span>关注/线索</span><strong>3</strong></div><div class="bar"><span style="width:100%"></span></div></div><div class="funnel-row"><div class="funnel-label"><span>试用</span><strong>1</strong></div><div class="bar"><span style="width:33%"></span></div></div><div class="funnel-row"><div class="funnel-label"><span>激活</span><strong>2</strong></div><div class="bar"><span style="width:66%"></span></div></div><div class="funnel-row"><div class="funnel-label"><span>高意向</span><strong>1</strong></div><div class="bar"><span style="width:33%"></span></div></div>
+            </div>
+          </div>
+          <div class="card risk-card">
+            <h3 class="mini-title">风险提醒</h3>
+            <div class="bullets">
+              <div class="bullet">不要只有内容曝光，没有试用承接</div><div class="bullet">不要让试用用户停留在未激活状态</div><div class="bullet">不要让高意向用户无人跟进超过 24 小时</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="card">
+          <h3 class="mini-title">线索来源分布</h3>
+          <div class="source-grid">
+            <div class="source-row"><div class="source-line"><span>X</span><strong>1</strong></div><div class="mini-bar"><span style="width:100%"></span></div></div><div class="source-row"><div class="source-line"><span>微信公众号</span><strong>1</strong></div><div class="mini-bar"><span style="width:100%"></span></div></div><div class="source-row"><div class="source-line"><span>雪球</span><strong>1</strong></div><div class="mini-bar"><span style="width:100%"></span></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3 class="mini-title">转化趋势概览</h3>
+          <div class="trend-grid">
+            <div class="trend-row"><div class="trend-label">公域触达</div><div class="trend-card"><strong>3</strong><small>内容曝光后进入线索池</small></div></div><div class="trend-row"><div class="trend-label">提交试用</div><div class="trend-card"><strong>1</strong><small>对产品有明确兴趣</small></div></div><div class="trend-row"><div class="trend-label">试用激活</div><div class="trend-card"><strong>2</strong><small>已经开始体验关键功能</small></div></div><div class="trend-row"><div class="trend-label">询价/成交推进</div><div class="trend-card"><strong>1</strong><small>适合销售优先跟进</small></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-grid">
+        <div class="card">
+          <div class="panel-header">
+            <h2>CRM 线索池</h2>
+            <span>按意向与下一步动作查看</span>
+          </div>
+          <div class="filters">
+            <button class="filter-chip active" data-stage="all">全部 <span>3</span></button><button class="filter-chip " data-stage="hot">高意向 <span>1</span></button><button class="filter-chip " data-stage="trial">试用中 <span>1</span></button><button class="filter-chip " data-stage="warm">温线索 <span>1</span></button><button class="filter-chip " data-stage="cold">冷线索 <span>0</span></button><button class="filter-chip " data-stage="paid">已付费 <span>0</span></button>
+          </div>
+          <div class="table-wrap">
+            <table id="lead-table">
+              <thead>
+                <tr>
+                  <th>线索</th>
+                  <th>来源</th>
+                  <th>阶段</th>
+                  <th>意向分</th>
+                  <th>下一步动作</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+            <tr data-stage="warm">
+              <td><strong>A股复盘用户</strong><br><small>lead_001</small></td>
+              <td>微信公众号</td>
+              <td><span class="badge stage-warm">温线索</span></td>
+              <td>72</td>
+              <td>引导申请试用</td>
+            </tr>
+            
+            <tr data-stage="trial">
+              <td><strong>短线交易用户</strong><br><small>lead_002</small></td>
+              <td>X</td>
+              <td><span class="badge stage-trial">试用中</span></td>
+              <td>81</td>
+              <td>引导先体验教练指令和持仓诊断</td>
+            </tr>
+            
+            <tr data-stage="hot">
+              <td><strong>持仓诊断用户</strong><br><small>lead_003</small></td>
+              <td>雪球</td>
+              <td><span class="badge stage-hot">高意向</span></td>
+              <td>90</td>
+              <td>推进正式版转化</td>
+            </tr>
+            
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h3 class="mini-title">试用状态概览</h3>
+          <div class="trial-list">
+            
+            <article class="trial-card">
+              <div class="trial-head">
+                <div>
+                  <strong>短线交易用户</strong>
+                  <small>X</small>
+                </div>
+                <span class="badge is-on">已激活</span>
+              </div>
+              <div class="trial-meta">注册 2 天 | 跟进节点 Day 3</div>
+              <div class="trial-block"><b>已使用功能</b><span>教练指令, 执行计划</span></div>
+              <div class="trial-block"><b>当前风险</b><span>尚未体验持仓诊断</span></div>
+              <div class="trial-block"><b>建议动作</b><span>引导用户说出自己的痛点并体验持仓诊断</span></div>
+            </article>
+            
+            <article class="trial-card">
+              <div class="trial-head">
+                <div>
+                  <strong>持仓诊断用户</strong>
+                  <small>雪球</small>
+                </div>
+                <span class="badge is-on">已激活</span>
+              </div>
+              <div class="trial-meta">注册 6 天 | 跟进节点 Day 6</div>
+              <div class="trial-block"><b>已使用功能</b><span>教练指令, 执行计划, 持仓诊断, 行为账单</span></div>
+              <div class="trial-block"><b>当前风险</b><span>暂无明显风险</span></div>
+              <div class="trial-block"><b>建议动作</b><span>推进正式版成交</span></div>
+            </article>
+            
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-grid">
+        <div class="card">
+          <h3 class="mini-title">操作提示</h3>
+          <div class="bullets">
+            <div class="bullet">点击左侧模块，可以看这家公司每个部门当前产出的详细 markdown 内容。</div>
+            <div class="bullet">阶段筛选按钮适合老板或销售负责人快速锁定今天该跟进的那一批人。</div>
+            <div class="bullet">如果你后面接真实表单或 CRM，只要替换 `examples/*.json`，这个界面就能继续复用。</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3 class="mini-title">下一步可接入</h3>
+          <div class="bullets">
+            <div class="bullet">真实表单申请数据：把试用申请直接写入线索池。</div>
+            <div class="bullet">真实用户行为：把登录、功能使用、复购意向同步到试用状态。</div>
+            <div class="bullet">自动刷新：让老板打开页面就能看到最新状态，而不是手动重跑。</div>
+          </div>
+        </div>
+      </section>
+
+      
+            <section id="panel-0" class="panel active">
+              <div class="panel-header">
+                <h2>CEO看板</h2>
+                <span>crm_dashboard.md</span>
+              </div>
+              <pre># CRM Dashboard
+
+## This Week Overview
+
+- 新增线索：3
+- 试用用户：1
+- 高意向用户：1
+- 已激活试用：2
+
+## Lead Stages
+
+| Stage | Count |
+|---|---:|
+| warm | 1 |
+| trial | 1 |
+| hot | 1 |
+
+## This Week Todos
+
+- 周一确认主题：知行不一修正周
+- 周三发布公众号主文
+- 周四重点跟进 trial 用户
+- 周五推进 hot 用户转付费
+
+## Risk Alerts
+
+- 必须保留人工终审
+- CTA 要统一为：关注公众号 / 关注 X / 申请试用 / 付费升级
+- 优先推进高意向试用，不要只堆内容
+</pre>
+            </section>
+            
+            <section id="panel-1" class="panel ">
+              <div class="panel-header">
+                <h2>增长计划</h2>
+                <span>growth_execution_plan.md</span>
+              </div>
+              <pre># Growth Execution Plan
+
+## Product
+
+- 产品：股票交易策略教练系统
+- 目标用户：A 股散户，尤其是有一定交易经验、经常追高、容易情绪化下单、缺少复盘和仓位纪律的个人投资者
+- 主题：知行不一修正周
+- 核心 CTA：引导用户申请试用，后续转化为付费用户，同时沉淀公众号关注和 X 关注
+
+## Content Pillars
+
+- 少做错误交易
+- 教练指令
+- 执行计划与仓位纪律
+- 持仓诊断
+- 行为账单与复盘
+
+## Market Signals
+
+- [P1] 交易纪律与执行偏差讨论升温: 用户更愿意讨论为什么明明有策略却执行不到位，适合做知行不一、复盘清单、执行偏差诊断类内容。
+- [P1] 市场波动放大后，风险控制内容更容易获得收藏: 适合围绕仓位、止损、计划偏离和交易后复盘做系统化内容。
+- [P2] 交易日志模板和复盘模板内容点击率较高: 适合把产品包装成方法工具和训练辅助，而不是预测工具。
+
+## Competitor Snapshots
+
+- 交易训练营型账号: 强调老师经验和训练营陪跑
+- 量化工具型产品: 强调工具效率和策略分析能力
+- 投资教育博主: 强调认知提升、风险管理和市场理解
+
+## Weekly Calendar
+
+| Day | Channel | Topic | CTA |
+|---|---|---|---|
+| Mon | X | 少做错误交易 | 关注 X / 申请试用 |
+| Tue | 小红书 | 为什么散户总在不该动的时候动 | 关注公众号 |
+| Wed | 公众号 | 教练指令的价值 | 申请试用 |
+| Thu | 雪球 | 持仓诊断与仓位纪律 | 申请试用 |
+| Fri | X + 公众号 | 本周复盘与行为纠偏 | 试用转付费 |
+</pre>
+            </section>
+            
+            <section id="panel-2" class="panel ">
+              <div class="panel-header">
+                <h2>线索分层</h2>
+                <span>lead_triage.md</span>
+              </div>
+              <pre># Lead Triage
+
+| Lead ID | Source | Stage | Intent | Pain Points | Next Action |
+|---|---|---|---:|---|---|
+| lead_001 | 微信公众号 | warm | 72 | 追高, 盘后不复盘 | 引导申请试用 |
+| lead_002 | X | trial | 81 | 仓位太重, 止损拖延 | 引导先体验教练指令和持仓诊断 |
+| lead_003 | 雪球 | hot | 90 | 持仓集中, 结构看不清 | 推进正式版转化 |
+</pre>
+            </section>
+            
+            <section id="panel-3" class="panel ">
+              <div class="panel-header">
+                <h2>试用跟进</h2>
+                <span>trial_followup_plan.md</span>
+              </div>
+              <pre># Trial Follow-up Plan
+
+| Lead ID | Activated | Days Since Signup | Used Features | Next Follow-up | Goal |
+|---|---|---:|---|---|---|
+| lead_002 | True | 2 | 教练指令, 执行计划 | Day 3 | 引导用户说出自己的痛点并体验持仓诊断 |
+| lead_003 | True | 6 | 教练指令, 执行计划, 持仓诊断, 行为账单 | Day 6 | 推进正式版成交 |
+</pre>
+            </section>
+            
+            <section id="panel-4" class="panel ">
+              <div class="panel-header">
+                <h2>成交推进</h2>
+                <span>sales_conversion_plan.md</span>
+              </div>
+              <pre># Sales Conversion Plan
+
+## High Intent Leads
+
+- lead_003 / 持仓诊断用户 / 来源=雪球 / 成交理由=高意向或已询问正式版 / 推荐动作=推进正式版转化
+</pre>
+            </section>
+            
+
+      <div class="note">
+        下一步如果要更像真正 SaaS，可以继续接：真实表单线索、真实试用行为、自动刷新和用户状态筛选。
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const tabs = [...document.querySelectorAll('.tab')];
+    const panels = [...document.querySelectorAll('.panel')];
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(x => x.classList.remove('active'));
+        panels.forEach(x => x.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.panel).classList.add('active');
+      });
+    });
+
+    const chips = [...document.querySelectorAll('.filter-chip')];
+    const leadRows = [...document.querySelectorAll('#lead-table tbody tr')];
+    chips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        chips.forEach(x => x.classList.remove('active'));
+        chip.classList.add('active');
+        const stage = chip.dataset.stage;
+        leadRows.forEach(row => {
+          row.style.display = stage === 'all' || row.dataset.stage === stage ? '' : 'none';
+        });
+      });
+    });
+  </script>
+</body>
+</html>
