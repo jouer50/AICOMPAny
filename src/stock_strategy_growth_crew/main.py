@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import json
+import os
 import sys
 import warnings
 
@@ -21,9 +22,24 @@ DEFAULT_INPUTS = {
     "current_year": str(datetime.now().year)
 }
 
-BRIEF_PATH = Path(__file__).resolve().parents[2] / "examples" / "campaign_brief.json"
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+def _resolve_project_root() -> Path:
+    candidates = []
+    env_root = os.getenv("STOCK_STRATEGY_GROWTH_CREW_HOME")
+    if env_root:
+        candidates.append(Path(env_root).expanduser())
+    candidates.append(Path.cwd())
+    candidates.append(Path(__file__).resolve().parents[2])
+
+    for candidate in candidates:
+        if (candidate / "examples").exists():
+            return candidate
+    return Path(__file__).resolve().parents[2]
+
+
+PROJECT_ROOT = _resolve_project_root()
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
+BRIEF_PATH = EXAMPLES_DIR / "campaign_brief.json"
 
 
 def _read_text(path: Path) -> str:

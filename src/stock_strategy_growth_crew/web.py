@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -11,7 +12,21 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from stock_strategy_growth_crew.main import demo_run
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+def _resolve_project_root() -> Path:
+    candidates = []
+    env_root = os.getenv("STOCK_STRATEGY_GROWTH_CREW_HOME")
+    if env_root:
+        candidates.append(Path(env_root).expanduser())
+    candidates.append(Path.cwd())
+    candidates.append(Path(__file__).resolve().parents[2])
+
+    for candidate in candidates:
+        if (candidate / "examples").exists() and (candidate / "dashboard.py").exists():
+            return candidate
+    return Path.cwd()
+
+
+PROJECT_ROOT = _resolve_project_root()
 DASHBOARD_PATH = PROJECT_ROOT / "dashboard.html"
 DASHBOARD_SCRIPT = PROJECT_ROOT / "dashboard.py"
 
@@ -100,4 +115,3 @@ def serve() -> None:
     import uvicorn
 
     uvicorn.run("stock_strategy_growth_crew.web:app", host="0.0.0.0", port=8000)
-
