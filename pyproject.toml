@@ -7,7 +7,12 @@ requires-python = ">=3.10,<3.14"
 dependencies = [
     "crewai[tools]==1.10.1",
     "fastapi==0.116.1",
-    "uvicorn[standard]==0.35.0"
+    "uvicorn[standard]==0.35.0",
+    "sqlalchemy==2.0.43",
+    "psycopg[binary]==3.2.10",
+    "pydantic-settings==2.10.1",
+    "celery[redis]==5.5.3",
+    "redis==6.4.0"
 ]
 
 [project.scripts]
@@ -15,6 +20,7 @@ stock_strategy_growth_crew = "stock_strategy_growth_crew.main:run"
 run_crew = "stock_strategy_growth_crew.main:run"
 demo_run = "stock_strategy_growth_crew.main:demo_run"
 serve = "stock_strategy_growth_crew.web:serve"
+worker = "stock_strategy_growth_crew.worker:run_worker"
 train = "stock_strategy_growth_crew.main:train"
 replay = "stock_strategy_growth_crew.main:replay"
 test = "stock_strategy_growth_crew.main:test"
