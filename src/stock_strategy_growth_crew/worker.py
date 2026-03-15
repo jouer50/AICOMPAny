@@ -83,6 +83,21 @@ def _classify_lead(lead: Lead, trial: TrialActivity | None) -> tuple[str, int, s
     return "cold", score, "降低触达频率，保留在内容培育池"
 
 
+def _build_trial_followup(trial: TrialActivity) -> tuple[str, str]:
+    used = json.loads(trial.used_features or "[]") if trial.used_features else []
+    risks = json.loads(trial.risk_signals or "[]") if trial.risk_signals else []
+
+    if not trial.activated:
+        return "Day 1", "先完成首次登录，并至少体验一次教练指令"
+    if "持仓诊断" not in used:
+        return "Day 3", "引导体验持仓诊断，并让用户说出当前最大持仓风险"
+    if len(used) < 3:
+        return "Day 5", "推动补全关键功能体验，形成从指令到执行计划的闭环"
+    if risks:
+        return "Day 6", "围绕风险信号做针对性跟进，推动用正式版持续纠偏"
+    return "Day 7", "推进正式版成交，强调长期纪律和复盘价值"
+
+
 @celery_app.task(name="robot_company.seed_demo_data")
 def seed_demo_data_task() -> str:
     initialize_database()
@@ -129,6 +144,21 @@ def triage_leads_task() -> dict:
             updated += 1
         db.commit()
     return {"status": "triaged", "lead_count": updated}
+
+
+@celery_app.task(name="robot_company.generate_trial_followup")
+def generate_trial_followup_task() -> dict:
+    initialize_database()
+    updated = 0
+    with SessionLocal() as db:
+        trials = db.query(TrialActivity).all()
+        for trial in trials:
+            followup_day, goal = _build_trial_followup(trial)
+            trial.recommended_followup_day = followup_day
+            trial.recommended_goal = goal
+            updated += 1
+        db.commit()
+    return {"status": "followup_generated", "trial_count": updated}
 
 
 def run_worker() -> None:

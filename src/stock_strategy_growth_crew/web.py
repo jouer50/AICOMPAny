@@ -31,7 +31,12 @@ from stock_strategy_growth_crew.schemas import (
     TrialActivityRead,
 )
 from stock_strategy_growth_crew.settings import settings
-from stock_strategy_growth_crew.worker import celery_app, generate_weekly_content_plan_task, triage_leads_task
+from stock_strategy_growth_crew.worker import (
+    celery_app,
+    generate_trial_followup_task,
+    generate_weekly_content_plan_task,
+    triage_leads_task,
+)
 
 
 DASHBOARD_PATH = PROJECT_ROOT / "dashboard.html"
@@ -485,10 +490,14 @@ def build_live_app_html() -> str:
             <button class="button secondary" id="triage-button" type="button">Run Lead Triage</button>
             <span class="status" id="triage-status">Ready</span>
           </div>
+          <div class="actions" style="margin-top:12px;">
+            <button class="button secondary" id="followup-button" type="button">Generate Trial Follow-up</button>
+            <span class="status" id="followup-status">Ready</span>
+          </div>
         </div>
         <div class="item">
           <strong>Current Backend Scope</strong>
-          <div class="muted">现在 `/app` 已经有四类真实写操作，再加上两条真正的 worker 任务：生成本周内容计划、线索分层。</div>
+          <div class="muted">现在 `/app` 已经有四类真实写操作，再加上三条真正的 worker 任务：内容计划、线索分层、试用跟进。</div>
         </div>
       </div>
     </section>
@@ -868,6 +877,39 @@ def build_live_app_html() -> str:
       button.disabled = false;
     }
 
+    async function generateTrialFollowup() {
+      const button = document.getElementById('followup-button');
+      const status = document.getElementById('followup-status');
+      button.disabled = true;
+      status.classList.remove('good');
+      status.textContent = 'Queueing...';
+
+      const response = await fetch('/api/v1/automation/trial-followup', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        let detail = `Failed: ${response.status}`;
+        try {
+          const body = await response.json();
+          detail = body.detail || detail;
+        } catch (_) {
+        }
+        status.textContent = detail;
+        button.disabled = false;
+        return;
+      }
+
+      const payload = await response.json();
+      status.textContent = `Queued ${payload.task_id}`;
+      await pollJob(
+        payload.task_id,
+        'followup-status',
+        (result) => `Updated ${result.trial_count} trials`
+      );
+      button.disabled = false;
+    }
+
     document.getElementById('refresh-button').addEventListener('click', refreshDemo);
     document.getElementById('reload-button').addEventListener('click', loadDashboard);
     document.getElementById('lead-form').addEventListener('submit', createLead);
@@ -875,6 +917,7 @@ def build_live_app_html() -> str:
     document.getElementById('trial-form').addEventListener('submit', updateTrial);
     document.getElementById('plan-button').addEventListener('click', generateWeeklyPlan);
     document.getElementById('triage-button').addEventListener('click', runLeadTriage);
+    document.getElementById('followup-button').addEventListener('click', generateTrialFollowup);
     loadDashboard().catch((error) => {
       document.getElementById('env-badge').textContent = 'Load Failed';
       document.getElementById('metric-grid').innerHTML = `<article class="card empty">${error.message}</article>`;
@@ -1267,6 +1310,13 @@ def trigger_content_plan(request: Request) -> AutomationJobRead:
 def trigger_lead_triage(request: Request) -> AutomationJobRead:
     require_admin_api(request)
     result = triage_leads_task.delay()
+    return AutomationJobRead(task_id=result.id, status=result.status)
+
+
+@app.post("/api/v1/automation/trial-followup", response_model=AutomationJobRead)
+def trigger_trial_followup(request: Request) -> AutomationJobRead:
+    require_admin_api(request)
+    result = generate_trial_followup_task.delay()
     return AutomationJobRead(task_id=result.id, status=result.status)
 
 
