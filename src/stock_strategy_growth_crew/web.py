@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+import secrets
 import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from pydantic import BaseModel
+from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -811,11 +814,183 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version="0.2.0", lifespan=lifespan)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    same_site="lax",
+    https_only=False,
+)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+def is_authenticated(request: Request) -> bool:
+    return bool(request.session.get("authenticated"))
+
+
+def require_admin_api(request: Request) -> None:
+    if not is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+
+def build_login_html() -> str:
+    return """<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Robot Company Login</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --text: #161616;
+      --muted: #6a655f;
+      --line: #ddd5ca;
+      --accent: #184e3b;
+      --shadow: 0 18px 50px rgba(26, 28, 24, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      background:
+        radial-gradient(circle at top left, #efe6da 0, transparent 28%),
+        radial-gradient(circle at top right, #ddeee6 0, transparent 26%),
+        var(--bg);
+      color: var(--text);
+    }
+    .panel {
+      width: min(100%, 420px);
+      background: rgba(255,253,248,.94);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      letter-spacing: -.04em;
+    }
+    p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+    .field {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: white;
+      padding: 11px 12px;
+      font-size: 14px;
+    }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: white;
+      padding: 12px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 4px;
+    }
+    .status {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>Admin Login</h1>
+    <p>这是生产后台的管理员入口。登录后才能访问 <code>/app</code> 和业务 API。</p>
+    <form id="login-form">
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" value="admin" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit">Login</button>
+      <div class="status" id="status">Use the configured admin credentials.</div>
+    </form>
+  </div>
+  <script>
+    document.getElementById('login-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const status = document.getElementById('status');
+      status.textContent = 'Signing in...';
+      const payload = {
+        username: document.getElementById('username').value.trim(),
+        password: document.getElementById('password').value,
+      };
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        status.textContent = 'Login failed';
+        return;
+      }
+      window.location.href = '/app';
+    });
+  </script>
+</body>
+</html>"""
 
 
 @app.get("/healthz")
 def healthz() -> dict:
     return {"status": "ok", "env": settings.app_env}
+
+
+@app.get("/login", response_class=HTMLResponse, response_model=None)
+def login_page(request: Request):
+    if is_authenticated(request):
+        return RedirectResponse(url="/app", status_code=302)
+    return HTMLResponse(build_login_html())
+
+
+@app.post("/api/login")
+def login(payload: LoginRequest, request: Request) -> dict:
+    username_ok = secrets.compare_digest(payload.username, settings.admin_username)
+    password_ok = secrets.compare_digest(payload.password, settings.admin_password)
+    if not (username_ok and password_ok):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    request.session["authenticated"] = True
+    return {"status": "ok"}
+
+
+@app.post("/api/logout")
+def logout(request: Request) -> dict:
+    request.session.clear()
+    return {"status": "ok"}
 
 
 @app.get("/")
@@ -828,20 +1003,25 @@ def dashboard() -> RedirectResponse:
     return RedirectResponse(url="/app", status_code=302)
 
 
-@app.get("/dashboard-static")
-def dashboard_static() -> FileResponse:
+@app.get("/dashboard-static", response_model=None)
+def dashboard_static(request: Request):
+    if not is_authenticated(request):
+        return RedirectResponse(url="/login", status_code=302)
     if not DASHBOARD_PATH.exists():
         refresh_demo_assets()
     return FileResponse(DASHBOARD_PATH, media_type="text/html")
 
 
-@app.get("/app", response_class=HTMLResponse)
-def app_page() -> HTMLResponse:
+@app.get("/app", response_class=HTMLResponse, response_model=None)
+def app_page(request: Request):
+    if not is_authenticated(request):
+        return RedirectResponse(url="/login", status_code=302)
     return HTMLResponse(build_live_app_html())
 
 
 @app.post("/api/refresh")
-def refresh() -> JSONResponse:
+def refresh(request: Request) -> JSONResponse:
+    require_admin_api(request)
     try:
         refresh_demo_assets()
     except subprocess.CalledProcessError as exc:
@@ -850,22 +1030,26 @@ def refresh() -> JSONResponse:
 
 
 @app.post("/api/v1/bootstrap")
-def bootstrap_data() -> dict:
+def bootstrap_data(request: Request) -> dict:
+    require_admin_api(request)
     ensure_seeded()
     return {"status": "ok"}
 
 
 @app.get("/api/dashboard", response_model=DashboardPayload)
 @app.get("/api/v1/dashboard", response_model=DashboardPayload)
-def dashboard_data(db: Session = Depends(get_db)) -> DashboardPayload:
+def dashboard_data(request: Request, db: Session = Depends(get_db)) -> DashboardPayload:
+    require_admin_api(request)
     return build_dashboard_payload(db)
 
 
 @app.get("/api/v1/leads", response_model=list[LeadRead])
 def list_leads(
+    request: Request,
     stage: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[LeadRead]:
+    require_admin_api(request)
     stmt = select(Lead).options(selectinload(Lead.trial_activity)).order_by(Lead.created_at.desc())
     if stage:
         stmt = stmt.where(Lead.stage == stage)
@@ -874,7 +1058,8 @@ def list_leads(
 
 
 @app.post("/api/v1/leads", response_model=LeadRead, status_code=201)
-def create_lead(payload: LeadCreate, db: Session = Depends(get_db)) -> LeadRead:
+def create_lead(payload: LeadCreate, request: Request, db: Session = Depends(get_db)) -> LeadRead:
+    require_admin_api(request)
     existing = db.get(Lead, payload.id)
     if existing:
         raise HTTPException(status_code=409, detail="Lead already exists")
@@ -896,7 +1081,8 @@ def create_lead(payload: LeadCreate, db: Session = Depends(get_db)) -> LeadRead:
 
 
 @app.patch("/api/v1/leads/{lead_id}", response_model=LeadRead)
-def update_lead(lead_id: str, payload: LeadUpdate, db: Session = Depends(get_db)) -> LeadRead:
+def update_lead(lead_id: str, payload: LeadUpdate, request: Request, db: Session = Depends(get_db)) -> LeadRead:
+    require_admin_api(request)
     lead = db.get(Lead, lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -910,13 +1096,15 @@ def update_lead(lead_id: str, payload: LeadUpdate, db: Session = Depends(get_db)
 
 
 @app.get("/api/v1/trials", response_model=list[TrialActivityRead])
-def list_trials(db: Session = Depends(get_db)) -> list[TrialActivityRead]:
+def list_trials(request: Request, db: Session = Depends(get_db)) -> list[TrialActivityRead]:
+    require_admin_api(request)
     trials = db.scalars(select(TrialActivity).order_by(TrialActivity.updated_at.desc())).all()
     return [_serialize_trial(trial) for trial in trials]
 
 
 @app.post("/api/v1/trials", response_model=TrialActivityRead, status_code=201)
-def upsert_trial(payload: TrialActivityCreate, db: Session = Depends(get_db)) -> TrialActivityRead:
+def upsert_trial(payload: TrialActivityCreate, request: Request, db: Session = Depends(get_db)) -> TrialActivityRead:
+    require_admin_api(request)
     lead = db.get(Lead, payload.lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -939,13 +1127,15 @@ def upsert_trial(payload: TrialActivityCreate, db: Session = Depends(get_db)) ->
 
 
 @app.get("/api/v1/content-tasks", response_model=list[ContentTaskRead])
-def list_content_tasks(db: Session = Depends(get_db)) -> list[ContentTaskRead]:
+def list_content_tasks(request: Request, db: Session = Depends(get_db)) -> list[ContentTaskRead]:
+    require_admin_api(request)
     tasks = db.scalars(select(ContentTask).order_by(ContentTask.created_at.desc())).all()
     return [_serialize_content_task(task) for task in tasks]
 
 
 @app.patch("/api/v1/content-tasks/{task_id}", response_model=ContentTaskRead)
-def update_content_task(task_id: int, payload: ContentTaskUpdate, db: Session = Depends(get_db)) -> ContentTaskRead:
+def update_content_task(task_id: int, payload: ContentTaskUpdate, request: Request, db: Session = Depends(get_db)) -> ContentTaskRead:
+    require_admin_api(request)
     task = db.get(ContentTask, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Content task not found")

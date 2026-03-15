@@ -26,7 +26,9 @@ class Settings(BaseSettings):
         default=None,
         alias="STOCK_STRATEGY_GROWTH_CREW_HOME",
     )
+    admin_username: str = Field(default="admin", alias="ADMIN_USERNAME")
+    admin_password: str = Field(default="change-me", alias="ADMIN_PASSWORD")
+    session_secret: str = Field(default="dev-session-secret", alias="SESSION_SECRET")
 
 
 settings = Settings()
-

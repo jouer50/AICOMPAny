@@ -26,6 +26,10 @@
   - 已有 API 驱动页面 `/app`
   - `/dashboard` 已切换为跳转 `/app`
   - `/dashboard-static` 保留旧静态页
+  - 已有管理员登录：
+    - `/login`
+    - `/api/login`
+    - `/api/logout`
 - `pyproject.toml` 已补生产依赖：
   - `sqlalchemy`
   - `psycopg`
@@ -94,22 +98,28 @@
 - `/app` 页面返回正常
 - `pytest tests/test_api.py` 通过
 - `/app` 已支持三类真实写操作：
+- `/app` 已支持四类真实写操作：
   - 创建 lead
+  - 更新 lead
   - 更新 trial
   - 更新 content task 状态
 - `web.py` 已从 `on_event` 切换到 lifespan
+- 业务 API 现在要求登录后访问
 
 ## What To Do Next
 
 明天继续时按这个顺序：
 
 1. 把 `/app` 页面继续扩成真正操作后台
-   - lead 编辑
    - trial 编辑体验优化
    - content task 更多字段操作
+   - 更好的筛选/分页
 2. 本地和云上联调 `api + postgres + redis + worker`
 3. 统一 UTC 时间实现，替换 `utcnow()` 警告
-4. 增加认证和管理入口
+4. 认证进一步增强
+   - 真正的用户表
+   - 密码哈希
+   - 登出后跳转
 5. 把更多业务动作接到 worker 任务
 
 ## Tencent Cloud Notes

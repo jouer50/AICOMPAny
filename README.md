@@ -197,6 +197,9 @@ docker compose logs -f
 当前已经有的生产接口：
 
 - `GET /healthz`
+- `GET /login`
+- `POST /api/login`
+- `POST /api/logout`
 - `GET /app`
 - `GET /dashboard` -> redirect `/app`
 - `GET /dashboard-static`
@@ -213,6 +216,11 @@ docker compose logs -f
 - `/dashboard` 现在已经切到生产页面 `/app`
 - 旧静态页面保留在：`/dashboard-static`
 - 新的 API 驱动页面入口是：`/app`
+- `/app` 和业务 API 现在需要管理员登录
+- 默认管理员凭据由环境变量控制：
+  - `ADMIN_USERNAME`
+  - `ADMIN_PASSWORD`
+  - `SESSION_SECRET`
 - 新的生产化方向已经转向：`数据库 + API + worker`
 
 ## 改哪些文件

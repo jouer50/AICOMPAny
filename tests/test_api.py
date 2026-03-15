@@ -5,6 +5,14 @@ from fastapi.testclient import TestClient
 from stock_strategy_growth_crew.web import app
 
 
+def login(client: TestClient) -> None:
+    response = client.post(
+        "/api/login",
+        json={"username": "admin", "password": "change-me"},
+    )
+    assert response.status_code == 200
+
+
 def test_healthz() -> None:
     with TestClient(app) as client:
         response = client.get("/healthz")
@@ -26,8 +34,22 @@ def test_dashboard_redirects_to_app() -> None:
     assert response.headers["location"] == "/app"
 
 
+def test_login_page_loads() -> None:
+    with TestClient(app) as client:
+        response = client.get("/login")
+    assert response.status_code == 200
+    assert "Admin Login" in response.text
+
+
+def test_dashboard_requires_auth() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/v1/dashboard")
+    assert response.status_code == 401
+
+
 def test_dashboard_payload() -> None:
     with TestClient(app) as client:
+        login(client)
         response = client.get("/api/v1/dashboard")
     assert response.status_code == 200
     payload = response.json()
@@ -37,6 +59,7 @@ def test_dashboard_payload() -> None:
 
 def test_app_page() -> None:
     with TestClient(app) as client:
+        login(client)
         response = client.get("/app")
     assert response.status_code == 200
     assert "Robot Company App" in response.text
@@ -44,6 +67,7 @@ def test_app_page() -> None:
 
 def test_create_lead() -> None:
     with TestClient(app) as client:
+        login(client)
         response = client.post(
             "/api/v1/leads",
             json={
@@ -66,6 +90,7 @@ def test_create_lead() -> None:
 
 def test_update_lead() -> None:
     with TestClient(app) as client:
+        login(client)
         create_response = client.post(
             "/api/v1/leads",
             json={
@@ -98,6 +123,7 @@ def test_update_lead() -> None:
 
 def test_upsert_trial() -> None:
     with TestClient(app) as client:
+        login(client)
         create_lead_response = client.post(
             "/api/v1/leads",
             json={
@@ -133,6 +159,7 @@ def test_upsert_trial() -> None:
 
 def test_update_content_task() -> None:
     with TestClient(app) as client:
+        login(client)
         tasks = client.get("/api/v1/content-tasks").json()
         assert tasks
         task_id = tasks[0]["id"]
