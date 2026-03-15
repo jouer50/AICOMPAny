@@ -20,3 +20,9 @@ def test_dashboard_payload() -> None:
     assert payload["summary"]["lead_count"] >= 1
     assert len(payload["leads"]) >= 1
 
+
+def test_app_page() -> None:
+    with TestClient(app) as client:
+        response = client.get("/app")
+    assert response.status_code == 200
+    assert "Robot Company App" in response.text

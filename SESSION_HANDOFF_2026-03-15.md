@@ -18,6 +18,12 @@
   - `src/stock_strategy_growth_crew/settings.py`
   - `src/stock_strategy_growth_crew/db.py`
   - `src/stock_strategy_growth_crew/models.py`
+  - `src/stock_strategy_growth_crew/schemas.py`
+  - `src/stock_strategy_growth_crew/bootstrap.py`
+  - `src/stock_strategy_growth_crew/worker.py`
+- `src/stock_strategy_growth_crew/web.py` 已不再只是 demo：
+  - 已有生产 API
+  - 已有 API 驱动页面 `/app`
 - `pyproject.toml` 已补生产依赖：
   - `sqlalchemy`
   - `psycopg`
@@ -28,14 +34,14 @@
 ## Latest Backup
 
 - Git commit:
-  - `fca792d`
+  - `edb6e3a`
 - 已推送到 GitHub `main`
 
 ## Current Project State
 
 ### Still Demo-Oriented
 
-以下模块仍然是 demo 逻辑，未完成生产迁移：
+以下模块仍然保留 demo 成分，但不再是纯静态骨架：
 
 - `src/stock_strategy_growth_crew/main.py`
 - `src/stock_strategy_growth_crew/web.py`
@@ -59,24 +65,43 @@
   - `Lead`
   - `TrialActivity`
   - `ContentTask`
+- `schemas.py`
+  - API 输入输出结构
+- `bootstrap.py`
+  - 建表
+  - demo seed
+- `worker.py`
+  - Celery worker 入口
+- `web.py`
+  - `GET /healthz`
+  - `GET /api/v1/dashboard`
+  - `GET/POST /api/v1/leads`
+  - `GET/POST /api/v1/trials`
+  - `GET /api/v1/content-tasks`
+  - `GET /app`
+
+### Verified Locally
+
+已验证：
+
+- 本地 seed 成功
+- `/api/v1/dashboard` 返回正常
+- `/app` 页面返回正常
+- `pytest tests/test_api.py` 通过
 
 ## What To Do Next
 
 明天继续时按这个顺序：
 
-1. 新增生产 API 目录与 schema
-   - leads
-   - trials
-   - dashboard summary
-2. 新增 DB 初始化和 demo seed
-3. 把 `web.py` 改成真正的 FastAPI app factory
-4. 接入 Postgres / Redis / Celery
-5. 改造 `docker-compose.yml` 为多服务：
-   - api
-   - postgres
-   - redis
-   - worker
-6. 更新 README 为生产化部署说明
+1. 把 `/app` 页面继续扩成真正操作后台
+   - lead 创建/编辑
+   - trial 更新
+   - content task 状态切换
+2. 把旧 `/dashboard` 静态页逐步废弃
+3. 本地和云上联调 `api + postgres + redis + worker`
+4. 把 `web.py` 的 `on_event` 改成 lifespan
+5. 增加认证和管理入口
+6. 把更多业务动作接到 worker 任务
 
 ## Tencent Cloud Notes
 
@@ -107,7 +132,7 @@
 
 - `sse-starlette 3.3.2` 需要更高版本 `starlette`
 
-目前不影响本地 dashboard，但后续生产化时要统一依赖版本，避免继续堆在同一个 venv 里。
+目前不影响本地开发，但后续生产化时要统一依赖版本，避免继续堆在同一个 venv 里。
 
 ## Recommended Start Command Tomorrow
 
@@ -119,4 +144,4 @@ git log --oneline -n 5
 git status
 ```
 
-然后继续做生产 API 和数据库接入。
+然后继续做 `/app` 的真实操作能力和多服务联调。

@@ -197,6 +197,7 @@ docker compose logs -f
 当前已经有的生产接口：
 
 - `GET /healthz`
+- `GET /app`
 - `GET /api/v1/dashboard`
 - `GET /api/v1/leads`
 - `POST /api/v1/leads`
@@ -208,7 +209,8 @@ docker compose logs -f
 注意：
 
 - 现在仍然保留了旧的 `/dashboard` 静态页面
-- 但新的生产化方向已经转向：`数据库 + API + worker`
+- 新的 API 驱动页面入口是：`/app`
+- 新的生产化方向已经转向：`数据库 + API + worker`
 
 ## 改哪些文件
 

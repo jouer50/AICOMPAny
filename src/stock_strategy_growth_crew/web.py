@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -85,6 +85,365 @@ def refresh_demo_assets() -> None:
     )
 
 
+def build_live_app_html() -> str:
+    return """<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Robot Company App</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --text: #161616;
+      --muted: #6a655f;
+      --line: #ddd5ca;
+      --accent: #184e3b;
+      --accent-2: #eef6f2;
+      --shadow: 0 18px 50px rgba(26, 28, 24, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      background:
+        radial-gradient(circle at top left, #efe6da 0, transparent 28%),
+        radial-gradient(circle at top right, #ddeee6 0, transparent 26%),
+        var(--bg);
+      color: var(--text);
+    }
+    .shell {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px 18px 40px;
+    }
+    .hero {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 18px;
+    }
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: 38px;
+      letter-spacing: -.04em;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: #163c2f;
+      color: white;
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .card {
+      background: rgba(255,253,248,.92);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+    .metric b {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .metric span {
+      display: block;
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    .metric small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .section-title {
+      margin: 0 0 12px;
+      font-size: 19px;
+    }
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: white;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 640px;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid #ebe3d8;
+      vertical-align: top;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    th {
+      font-size: 12px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: #fcfaf5;
+    }
+    .pill {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .stage-hot { background: #fff1ea; color: #9c3c14; border-color: #f3cfbf; }
+    .stage-trial { background: #eef6ff; color: #16508f; border-color: #c8daf4; }
+    .stage-warm { background: #fff8e7; color: #8a6400; border-color: #ead9a3; }
+    .stage-cold { background: #f2f3f5; color: #5f6470; border-color: #d9dce2; }
+    .stage-paid { background: #edf8f2; color: #176042; border-color: #c3e2d2; }
+    .trial-list, .task-list {
+      display: grid;
+      gap: 12px;
+    }
+    .item {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+    .item small, .muted {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .button {
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: white;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .empty {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .footer-note {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+      .layout { grid-template-columns: 1fr; }
+      .hero { flex-direction: column; align-items: stretch; }
+    }
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+      .shell { padding: 20px 14px 28px; }
+      .hero h1 { font-size: 30px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div>
+        <h1>Robot Company App</h1>
+        <p>这是生产 API 驱动页面。数据直接来自 <code>/api/v1/dashboard</code>，不再依赖预生成的 JSON 或静态 markdown。</p>
+      </div>
+      <div class="badge" id="env-badge">Loading...</div>
+    </section>
+
+    <section class="grid" id="metric-grid"></section>
+
+    <section class="layout">
+      <div class="card">
+        <div class="toolbar">
+          <h2 class="section-title">Leads</h2>
+          <button class="button" id="refresh-button">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Source</th>
+                <th>Stage</th>
+                <th>Intent</th>
+                <th>Next Action</th>
+              </tr>
+            </thead>
+            <tbody id="lead-rows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title">Trials</h2>
+        <div class="trial-list" id="trial-list"></div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="card">
+        <h2 class="section-title">Content Tasks</h2>
+        <div class="task-list" id="task-list"></div>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Notes</h2>
+        <div class="item">
+          <strong>Current Mode</strong>
+          <div class="muted">这个页面已经直接挂生产 API。下一步是把更多业务动作也切到数据库和 worker 上，而不是继续依赖 demo 输出。</div>
+        </div>
+        <div class="footer-note">
+          兼容页面仍保留在 <code>/dashboard</code>。生产页面入口是 <code>/app</code>。
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const stageLabel = {
+      cold: '冷线索',
+      warm: '温线索',
+      trial: '试用中',
+      hot: '高意向',
+      paid: '已付费',
+    };
+
+    function pillClass(stage) {
+      return `pill stage-${stage || 'cold'}`;
+    }
+
+    function metricCard(title, value, detail) {
+      return `
+        <article class="card metric">
+          <b>${title}</b>
+          <span>${value}</span>
+          <small>${detail}</small>
+        </article>
+      `;
+    }
+
+    function renderDashboard(payload) {
+      const summary = payload.summary;
+      document.getElementById('env-badge').textContent = 'API Connected';
+
+      document.getElementById('metric-grid').innerHTML = [
+        metricCard('活跃线索', summary.lead_count, '当前数据库中的线索'),
+        metricCard('试用用户', summary.trial_count, '当前处于 trial 阶段'),
+        metricCard('高意向', summary.hot_count, '优先推进成交'),
+        metricCard('内容任务', summary.content_task_count, '待执行内容排期'),
+      ].join('');
+
+      document.getElementById('lead-rows').innerHTML = payload.leads.length
+        ? payload.leads.map((lead) => `
+            <tr>
+              <td><strong>${lead.name}</strong><br><small>${lead.id}</small></td>
+              <td>${lead.source}</td>
+              <td><span class="${pillClass(lead.stage)}">${stageLabel[lead.stage] || lead.stage}</span></td>
+              <td>${lead.intent_score}</td>
+              <td>${lead.next_best_action || ''}</td>
+            </tr>
+          `).join('')
+        : '<tr><td colspan="5" class="empty">No leads yet.</td></tr>';
+
+      document.getElementById('trial-list').innerHTML = payload.trials.length
+        ? payload.trials.map((trial) => `
+            <article class="item">
+              <strong>${trial.lead_id}</strong>
+              <small>Day ${trial.days_since_signup} · ${trial.recommended_followup_day || '待定'}</small>
+              <div class="muted">已使用：${trial.used_features.join(' / ') || '暂无'}</div>
+              <div class="muted">建议：${trial.recommended_goal || '暂无'}</div>
+            </article>
+          `).join('')
+        : '<div class="empty">No trials yet.</div>';
+
+      document.getElementById('task-list').innerHTML = payload.content_tasks.length
+        ? payload.content_tasks.map((task) => `
+            <article class="item">
+              <strong>${task.title}</strong>
+              <small>${task.channel} · ${task.scheduled_day || '未排期'} · ${task.status}</small>
+              <div class="muted">CTA：${task.cta || '暂无'}</div>
+            </article>
+          `).join('')
+        : '<div class="empty">No content tasks yet.</div>';
+    }
+
+    async function loadDashboard() {
+      const response = await fetch('/api/v1/dashboard', { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`Failed to load dashboard: ${response.status}`);
+      }
+      const payload = await response.json();
+      renderDashboard(payload);
+    }
+
+    async function refreshDemo() {
+      const button = document.getElementById('refresh-button');
+      button.disabled = true;
+      button.textContent = 'Refreshing...';
+      try {
+        await fetch('/api/refresh', { method: 'POST' });
+        await loadDashboard();
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Refresh';
+      }
+    }
+
+    document.getElementById('refresh-button').addEventListener('click', refreshDemo);
+    loadDashboard().catch((error) => {
+      document.getElementById('env-badge').textContent = 'Load Failed';
+      document.getElementById('metric-grid').innerHTML = `<article class="card empty">${error.message}</article>`;
+    });
+  </script>
+</body>
+</html>"""
+
+
 def ensure_seeded() -> None:
     initialize_database()
     with SessionLocal() as db:
@@ -139,6 +498,11 @@ def dashboard() -> FileResponse:
     if not DASHBOARD_PATH.exists():
         refresh_demo_assets()
     return FileResponse(DASHBOARD_PATH, media_type="text/html")
+
+
+@app.get("/app", response_class=HTMLResponse)
+def app_page() -> HTMLResponse:
+    return HTMLResponse(build_live_app_html())
 
 
 @app.post("/api/refresh")
