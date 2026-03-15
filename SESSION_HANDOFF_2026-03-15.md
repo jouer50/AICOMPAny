@@ -24,6 +24,8 @@
 - `src/stock_strategy_growth_crew/web.py` 已不再只是 demo：
   - 已有生产 API
   - 已有 API 驱动页面 `/app`
+  - `/dashboard` 已切换为跳转 `/app`
+  - `/dashboard-static` 保留旧静态页
 - `pyproject.toml` 已补生产依赖：
   - `sqlalchemy`
   - `psycopg`
@@ -34,7 +36,7 @@
 ## Latest Backup
 
 - Git commit:
-  - `edb6e3a`
+  - `bb33635`
 - 已推送到 GitHub `main`
 
 ## Current Project State
@@ -74,10 +76,13 @@
   - Celery worker 入口
 - `web.py`
   - `GET /healthz`
+  - `GET /dashboard` -> `/app`
+  - `GET /dashboard-static`
   - `GET /api/v1/dashboard`
   - `GET/POST /api/v1/leads`
   - `GET/POST /api/v1/trials`
   - `GET /api/v1/content-tasks`
+  - `PATCH /api/v1/content-tasks/{task_id}`
   - `GET /app`
 
 ### Verified Locally
@@ -88,20 +93,24 @@
 - `/api/v1/dashboard` 返回正常
 - `/app` 页面返回正常
 - `pytest tests/test_api.py` 通过
+- `/app` 已支持三类真实写操作：
+  - 创建 lead
+  - 更新 trial
+  - 更新 content task 状态
+- `web.py` 已从 `on_event` 切换到 lifespan
 
 ## What To Do Next
 
 明天继续时按这个顺序：
 
 1. 把 `/app` 页面继续扩成真正操作后台
-   - lead 创建/编辑
-   - trial 更新
-   - content task 状态切换
-2. 把旧 `/dashboard` 静态页逐步废弃
-3. 本地和云上联调 `api + postgres + redis + worker`
-4. 把 `web.py` 的 `on_event` 改成 lifespan
-5. 增加认证和管理入口
-6. 把更多业务动作接到 worker 任务
+   - lead 编辑
+   - trial 编辑体验优化
+   - content task 更多字段操作
+2. 本地和云上联调 `api + postgres + redis + worker`
+3. 统一 UTC 时间实现，替换 `utcnow()` 警告
+4. 增加认证和管理入口
+5. 把更多业务动作接到 worker 任务
 
 ## Tencent Cloud Notes
 

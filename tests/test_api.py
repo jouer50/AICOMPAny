@@ -12,6 +12,20 @@ def test_healthz() -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_root_redirects_to_app() -> None:
+    with TestClient(app) as client:
+        response = client.get("/", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/app"
+
+
+def test_dashboard_redirects_to_app() -> None:
+    with TestClient(app) as client:
+        response = client.get("/dashboard", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/app"
+
+
 def test_dashboard_payload() -> None:
     with TestClient(app) as client:
         response = client.get("/api/v1/dashboard")

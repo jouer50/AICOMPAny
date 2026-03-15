@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -29,9 +30,6 @@ from stock_strategy_growth_crew.settings import settings
 
 DASHBOARD_PATH = PROJECT_ROOT / "dashboard.html"
 DASHBOARD_SCRIPT = PROJECT_ROOT / "dashboard.py"
-
-app = FastAPI(title=settings.app_name, version="0.2.0")
-
 
 def _parse_json_list(raw: str) -> list[str]:
     if not raw:
@@ -726,12 +724,15 @@ def build_dashboard_payload(db: Session) -> DashboardPayload:
         content_tasks=[_serialize_content_task(task) for task in content_tasks],
     )
 
-
-@app.on_event("startup")
-def startup_refresh() -> None:
+@asynccontextmanager
+async def lifespan(_: FastAPI):
     ensure_seeded()
     if not DASHBOARD_PATH.exists():
         refresh_demo_assets()
+    yield
+
+
+app = FastAPI(title=settings.app_name, version="0.2.0", lifespan=lifespan)
 
 
 @app.get("/healthz")
@@ -741,11 +742,16 @@ def healthz() -> dict:
 
 @app.get("/")
 def root() -> RedirectResponse:
-    return RedirectResponse(url="/dashboard", status_code=302)
+    return RedirectResponse(url="/app", status_code=302)
 
 
 @app.get("/dashboard")
-def dashboard() -> FileResponse:
+def dashboard() -> RedirectResponse:
+    return RedirectResponse(url="/app", status_code=302)
+
+
+@app.get("/dashboard-static")
+def dashboard_static() -> FileResponse:
     if not DASHBOARD_PATH.exists():
         refresh_demo_assets()
     return FileResponse(DASHBOARD_PATH, media_type="text/html")
