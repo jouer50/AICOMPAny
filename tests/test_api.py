@@ -218,51 +218,80 @@ def test_trigger_content_plan_job() -> None:
 
 
 def test_trigger_lead_triage_job() -> None:
-    with TestClient(app) as client:
-        login(client)
-        response = client.post("/api/v1/automation/lead-triage")
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["task_id"]
-        assert payload["status"] in ("SUCCESS", "PENDING")
+    fake_result = {
+        "stage": "hot",
+        "intent_score": 91,
+        "next_best_action": "立即推进成交沟通",
+    }
+    with patch("stock_strategy_growth_crew.worker.llm_is_configured", return_value=True), patch(
+        "stock_strategy_growth_crew.worker.triage_lead_with_llm",
+        return_value=fake_result,
+    ):
+        with TestClient(app) as client:
+            login(client)
+            response = client.post("/api/v1/automation/lead-triage")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["task_id"]
+            assert payload["status"] in ("SUCCESS", "PENDING")
 
-        job_response = client.get(f"/api/v1/jobs/{payload['task_id']}")
+            job_response = client.get(f"/api/v1/jobs/{payload['task_id']}")
     assert job_response.status_code == 200
     job_payload = job_response.json()
     assert job_payload["task_id"] == payload["task_id"]
     assert job_payload["status"] in ("SUCCESS", "PENDING")
+    assert job_payload["result"]["mode"] == "llm"
 
 
 def test_trigger_trial_followup_job() -> None:
-    with TestClient(app) as client:
-        login(client)
-        response = client.post("/api/v1/automation/trial-followup")
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["task_id"]
-        assert payload["status"] in ("SUCCESS", "PENDING")
+    fake_result = {
+        "recommended_followup_day": "Day 2",
+        "recommended_goal": "推动完成首次登录和教练指令体验",
+    }
+    with patch("stock_strategy_growth_crew.worker.llm_is_configured", return_value=True), patch(
+        "stock_strategy_growth_crew.worker.build_trial_followup_with_llm",
+        return_value=fake_result,
+    ):
+        with TestClient(app) as client:
+            login(client)
+            response = client.post("/api/v1/automation/trial-followup")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["task_id"]
+            assert payload["status"] in ("SUCCESS", "PENDING")
 
-        job_response = client.get(f"/api/v1/jobs/{payload['task_id']}")
+            job_response = client.get(f"/api/v1/jobs/{payload['task_id']}")
     assert job_response.status_code == 200
     job_payload = job_response.json()
     assert job_payload["task_id"] == payload["task_id"]
     assert job_payload["status"] in ("SUCCESS", "PENDING")
+    assert job_payload["result"]["mode"] == "llm"
 
 
 def test_trigger_sales_conversion_job() -> None:
-    with TestClient(app) as client:
-        login(client)
-        response = client.post("/api/v1/automation/sales-conversion")
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["task_id"]
-        assert payload["status"] in ("SUCCESS", "PENDING")
+    fake_result = {
+        "stage": "hot",
+        "intent_score": 95,
+        "next_best_action": "直接推进正式版成交",
+    }
+    with patch("stock_strategy_growth_crew.worker.llm_is_configured", return_value=True), patch(
+        "stock_strategy_growth_crew.worker.build_sales_conversion_with_llm",
+        return_value=fake_result,
+    ):
+        with TestClient(app) as client:
+            login(client)
+            response = client.post("/api/v1/automation/sales-conversion")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["task_id"]
+            assert payload["status"] in ("SUCCESS", "PENDING")
 
-        job_response = client.get(f"/api/v1/jobs/{payload['task_id']}")
+            job_response = client.get(f"/api/v1/jobs/{payload['task_id']}")
     assert job_response.status_code == 200
     job_payload = job_response.json()
     assert job_payload["task_id"] == payload["task_id"]
     assert job_payload["status"] in ("SUCCESS", "PENDING")
+    assert job_payload["result"]["mode"] == "llm"
 
 
 def test_trigger_daily_ops_job() -> None:

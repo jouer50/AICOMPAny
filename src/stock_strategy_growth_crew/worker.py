@@ -8,7 +8,13 @@ from sqlalchemy import delete
 
 from stock_strategy_growth_crew.bootstrap import initialize_database, seed_demo_data
 from stock_strategy_growth_crew.db import SessionLocal
-from stock_strategy_growth_crew.llm import generate_weekly_content_plan_with_llm, llm_is_configured
+from stock_strategy_growth_crew.llm import (
+    build_sales_conversion_with_llm,
+    build_trial_followup_with_llm,
+    generate_weekly_content_plan_with_llm,
+    llm_is_configured,
+    triage_lead_with_llm,
+)
 from stock_strategy_growth_crew.main import demo_run
 from stock_strategy_growth_crew.models import ContentTask, Lead, TrialActivity
 from stock_strategy_growth_crew.settings import settings
@@ -175,17 +181,53 @@ def triage_leads_task() -> dict:
 def _run_lead_triage() -> dict:
     initialize_database()
     updated = 0
+    mode = "rules"
+    fallback_reason = None
     with SessionLocal() as db:
         leads = db.query(Lead).all()
         for lead in leads:
             trial = db.get(TrialActivity, lead.id)
-            stage, score, next_action = _classify_lead(lead, trial)
+            if llm_is_configured():
+                try:
+                    llm_result = triage_lead_with_llm(
+                        {
+                            "id": lead.id,
+                            "name": lead.name,
+                            "source": lead.source,
+                            "stage": lead.stage,
+                            "intent_score": lead.intent_score,
+                            "pain_points": json.loads(lead.pain_points or "[]") if lead.pain_points else [],
+                            "last_action": lead.last_action,
+                            "next_best_action": lead.next_best_action,
+                        },
+                        {
+                            "lead_id": trial.lead_id,
+                            "activated": trial.activated,
+                            "days_since_signup": trial.days_since_signup,
+                            "used_features": json.loads(trial.used_features or "[]") if trial.used_features else [],
+                            "risk_signals": json.loads(trial.risk_signals or "[]") if trial.risk_signals else [],
+                        }
+                        if trial
+                        else None,
+                    )
+                    stage = llm_result["stage"]
+                    score = llm_result["intent_score"]
+                    next_action = llm_result["next_best_action"]
+                    mode = "llm"
+                except Exception as exc:
+                    fallback_reason = str(exc)
+                    stage, score, next_action = _classify_lead(lead, trial)
+            else:
+                stage, score, next_action = _classify_lead(lead, trial)
             lead.stage = stage
             lead.intent_score = score
             lead.next_best_action = next_action
             updated += 1
         db.commit()
-    return {"status": "triaged", "lead_count": updated}
+    payload = {"status": "triaged", "mode": mode, "lead_count": updated}
+    if fallback_reason:
+        payload["fallback_reason"] = fallback_reason
+    return payload
 
 
 @celery_app.task(name="robot_company.generate_trial_followup")
@@ -196,15 +238,40 @@ def generate_trial_followup_task() -> dict:
 def _run_trial_followup() -> dict:
     initialize_database()
     updated = 0
+    mode = "rules"
+    fallback_reason = None
     with SessionLocal() as db:
         trials = db.query(TrialActivity).all()
         for trial in trials:
-            followup_day, goal = _build_trial_followup(trial)
+            if llm_is_configured():
+                try:
+                    llm_result = build_trial_followup_with_llm(
+                        {
+                            "lead_id": trial.lead_id,
+                            "activated": trial.activated,
+                            "days_since_signup": trial.days_since_signup,
+                            "used_features": json.loads(trial.used_features or "[]") if trial.used_features else [],
+                            "risk_signals": json.loads(trial.risk_signals or "[]") if trial.risk_signals else [],
+                            "recommended_followup_day": trial.recommended_followup_day,
+                            "recommended_goal": trial.recommended_goal,
+                        }
+                    )
+                    followup_day = llm_result["recommended_followup_day"]
+                    goal = llm_result["recommended_goal"]
+                    mode = "llm"
+                except Exception as exc:
+                    fallback_reason = str(exc)
+                    followup_day, goal = _build_trial_followup(trial)
+            else:
+                followup_day, goal = _build_trial_followup(trial)
             trial.recommended_followup_day = followup_day
             trial.recommended_goal = goal
             updated += 1
         db.commit()
-    return {"status": "followup_generated", "trial_count": updated}
+    payload = {"status": "followup_generated", "mode": mode, "trial_count": updated}
+    if fallback_reason:
+        payload["fallback_reason"] = fallback_reason
+    return payload
 
 
 @celery_app.task(name="robot_company.generate_sales_conversion")
@@ -215,18 +282,55 @@ def generate_sales_conversion_task() -> dict:
 def _run_sales_conversion() -> dict:
     initialize_database()
     updated = 0
+    mode = "rules"
+    fallback_reason = None
     with SessionLocal() as db:
         leads = db.query(Lead).all()
         for lead in leads:
             trial = db.get(TrialActivity, lead.id)
-            next_action, score = _build_sales_conversion_action(lead, trial)
+            if llm_is_configured():
+                try:
+                    llm_result = build_sales_conversion_with_llm(
+                        {
+                            "id": lead.id,
+                            "name": lead.name,
+                            "source": lead.source,
+                            "stage": lead.stage,
+                            "intent_score": lead.intent_score,
+                            "pain_points": json.loads(lead.pain_points or "[]") if lead.pain_points else [],
+                            "last_action": lead.last_action,
+                            "next_best_action": lead.next_best_action,
+                        },
+                        {
+                            "lead_id": trial.lead_id,
+                            "activated": trial.activated,
+                            "days_since_signup": trial.days_since_signup,
+                            "used_features": json.loads(trial.used_features or "[]") if trial.used_features else [],
+                            "risk_signals": json.loads(trial.risk_signals or "[]") if trial.risk_signals else [],
+                        }
+                        if trial
+                        else None,
+                    )
+                    next_action = llm_result["next_best_action"]
+                    score = llm_result["intent_score"]
+                    stage = llm_result["stage"]
+                    mode = "llm"
+                except Exception as exc:
+                    fallback_reason = str(exc)
+                    next_action, score = _build_sales_conversion_action(lead, trial)
+                    stage = "hot" if score >= 85 else lead.stage
+            else:
+                next_action, score = _build_sales_conversion_action(lead, trial)
+                stage = "hot" if score >= 85 else lead.stage
             lead.intent_score = score
-            if score >= 85:
-                lead.stage = "hot"
+            lead.stage = stage
             lead.next_best_action = next_action
             updated += 1
         db.commit()
-    return {"status": "sales_conversion_generated", "lead_count": updated}
+    payload = {"status": "sales_conversion_generated", "mode": mode, "lead_count": updated}
+    if fallback_reason:
+        payload["fallback_reason"] = fallback_reason
+    return payload
 
 
 @celery_app.task(name="robot_company.run_full_daily_ops")

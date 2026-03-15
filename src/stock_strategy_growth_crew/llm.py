@@ -41,6 +41,39 @@ def _extract_message_content(payload: dict) -> str:
     raise ValueError("LLM response content is empty")
 
 
+def _call_openai_compatible_json(system_prompt: str, user_payload: dict) -> dict:
+    payload = {
+        "model": settings.llm_model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+        ],
+        "temperature": 0.4,
+        "response_format": {"type": "json_object"},
+    }
+    req = request.Request(
+        url=f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {settings.llm_api_key}",
+        },
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=settings.llm_timeout_seconds) as response:
+            raw_response = response.read().decode("utf-8")
+    except error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"LLM HTTP {exc.code}: {body[:300]}") from exc
+    except error.URLError as exc:
+        raise RuntimeError(f"LLM connection failed: {exc.reason}") from exc
+
+    payload_json = json.loads(raw_response)
+    message_content = _extract_message_content(payload_json)
+    return json.loads(_extract_json_block(message_content))
+
+
 def _extract_json_block(text: str) -> str:
     text = text.strip()
     fenced_start = text.find("```json")
@@ -84,60 +117,77 @@ def generate_weekly_content_plan_with_llm(brief: dict) -> list[dict]:
         raise RuntimeError("LLM is not configured")
 
     cta = brief.get("primary_cta", "申请试用")
-    payload = {
-        "model": settings.llm_model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "你是一个中文增长运营总监。请为 A 股散户交易教练产品输出一周内容计划。"
-                    "严格返回 JSON，不要解释。输出必须是对象，包含 tasks 数组。"
-                    "tasks 中每项必须包含 scheduled_day, channel, title, owner, cta。"
-                ),
-            },
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {
-                        "brief": brief,
-                        "channels": ["X", "小红书", "微信公众号", "雪球"],
-                        "days": VALID_DAYS,
-                        "requirements": [
-                            "只输出 7 条任务",
-                            "避免荐股、收益承诺、老师带单",
-                            "突出纪律、执行边界、持仓诊断、行为纠偏",
-                            "CTA 聚焦关注公众号/X、申请试用、转付费",
-                        ],
-                    },
-                    ensure_ascii=False,
-                ),
-            },
-        ],
-        "temperature": 0.6,
-        "response_format": {"type": "json_object"},
-    }
-    req = request.Request(
-        url=f"{settings.llm_base_url.rstrip('/')}/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {settings.llm_api_key}",
+    parsed = _call_openai_compatible_json(
+        (
+            "你是一个中文增长运营总监。请为 A 股散户交易教练产品输出一周内容计划。"
+            "严格返回 JSON，不要解释。输出必须是对象，包含 tasks 数组。"
+            "tasks 中每项必须包含 scheduled_day, channel, title, owner, cta。"
+        ),
+        {
+            "brief": brief,
+            "channels": ["X", "小红书", "微信公众号", "雪球"],
+            "days": VALID_DAYS,
+            "requirements": [
+                "只输出 7 条任务",
+                "避免荐股、收益承诺、老师带单",
+                "突出纪律、执行边界、持仓诊断、行为纠偏",
+                "CTA 聚焦关注公众号/X、申请试用、转付费",
+            ],
         },
-        method="POST",
     )
-    try:
-        with request.urlopen(req, timeout=settings.llm_timeout_seconds) as response:
-            raw_response = response.read().decode("utf-8")
-    except error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="ignore")
-        raise RuntimeError(f"LLM HTTP {exc.code}: {body[:300]}") from exc
-    except error.URLError as exc:
-        raise RuntimeError(f"LLM connection failed: {exc.reason}") from exc
-
-    payload_json = json.loads(raw_response)
-    message_content = _extract_message_content(payload_json)
-    parsed = json.loads(_extract_json_block(message_content))
     tasks = parsed.get("tasks") if isinstance(parsed, dict) else parsed
     if not isinstance(tasks, list):
         raise ValueError("LLM response tasks is not a list")
     return _normalize_tasks(tasks, cta)
+
+
+def triage_lead_with_llm(lead_payload: dict, trial_payload: dict | None) -> dict:
+    if not llm_is_configured():
+        raise RuntimeError("LLM is not configured")
+    parsed = _call_openai_compatible_json(
+        (
+            "你是一个中文销售运营经理。请根据 lead 和 trial 信号给出线索分层。"
+            "严格返回 JSON，不要解释。必须包含 stage, intent_score, next_best_action。"
+            "stage 只能是 cold, warm, trial, hot 之一，intent_score 必须在 0 到 100 之间。"
+        ),
+        {"lead": lead_payload, "trial": trial_payload},
+    )
+    return {
+        "stage": str(parsed.get("stage", "")).strip() or "warm",
+        "intent_score": max(0, min(int(parsed.get("intent_score", 0)), 100)),
+        "next_best_action": str(parsed.get("next_best_action", "")).strip() or "继续教育和案例触达，引导进入试用",
+    }
+
+
+def build_trial_followup_with_llm(trial_payload: dict) -> dict:
+    if not llm_is_configured():
+        raise RuntimeError("LLM is not configured")
+    parsed = _call_openai_compatible_json(
+        (
+            "你是一个中文试用成功经理。请基于试用状态输出下一次跟进建议。"
+            "严格返回 JSON，不要解释。必须包含 recommended_followup_day 和 recommended_goal。"
+        ),
+        {"trial": trial_payload},
+    )
+    return {
+        "recommended_followup_day": str(parsed.get("recommended_followup_day", "")).strip() or "Day 3",
+        "recommended_goal": str(parsed.get("recommended_goal", "")).strip() or "推动完成关键功能体验",
+    }
+
+
+def build_sales_conversion_with_llm(lead_payload: dict, trial_payload: dict | None) -> dict:
+    if not llm_is_configured():
+        raise RuntimeError("LLM is not configured")
+    parsed = _call_openai_compatible_json(
+        (
+            "你是一个中文成交经理。请根据 lead 和 trial 信号输出成交推进建议。"
+            "严格返回 JSON，不要解释。必须包含 intent_score, next_best_action, stage。"
+            "stage 只能是 cold, warm, trial, hot, paid 之一，intent_score 必须在 0 到 100 之间。"
+        ),
+        {"lead": lead_payload, "trial": trial_payload},
+    )
+    return {
+        "stage": str(parsed.get("stage", "")).strip() or "warm",
+        "intent_score": max(0, min(int(parsed.get("intent_score", 0)), 100)),
+        "next_best_action": str(parsed.get("next_best_action", "")).strip() or "继续内容培育，不进入强销售推进",
+    }
