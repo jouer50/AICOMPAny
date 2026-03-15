@@ -145,6 +145,20 @@ docker compose up -d --build
 
 - `http://服务器IP:8000/dashboard`
 
+当前 `docker-compose.yml` 已升级成生产骨架，多了：
+
+- `api`
+- `worker`
+- `postgres`
+- `redis`
+
+你现在可以把它理解成：
+
+- `api`：FastAPI 应用入口
+- `worker`：后台任务执行器
+- `postgres`：业务数据存储
+- `redis`：队列和缓存
+
 如果你有小龙虾/Nginx 反向代理，把域名转发到容器 `8000` 即可。
 
 ### 服务器更新
@@ -160,6 +174,41 @@ docker compose up -d --build
 ```bash
 docker compose logs -f
 ```
+
+## 生产骨架状态
+
+当前已落地的生产文件：
+
+- 配置：
+  [`settings.py`](/Users/jou/stock_strategy_growth_crew/src/stock_strategy_growth_crew/settings.py)
+- 数据库：
+  [`db.py`](/Users/jou/stock_strategy_growth_crew/src/stock_strategy_growth_crew/db.py)
+- 模型：
+  [`models.py`](/Users/jou/stock_strategy_growth_crew/src/stock_strategy_growth_crew/models.py)
+- Schema：
+  [`schemas.py`](/Users/jou/stock_strategy_growth_crew/src/stock_strategy_growth_crew/schemas.py)
+- 初始化：
+  [`bootstrap.py`](/Users/jou/stock_strategy_growth_crew/src/stock_strategy_growth_crew/bootstrap.py)
+- API：
+  [`web.py`](/Users/jou/stock_strategy_growth_crew/src/stock_strategy_growth_crew/web.py)
+- Worker：
+  [`worker.py`](/Users/jou/stock_strategy_growth_crew/src/stock_strategy_growth_crew/worker.py)
+
+当前已经有的生产接口：
+
+- `GET /healthz`
+- `GET /api/v1/dashboard`
+- `GET /api/v1/leads`
+- `POST /api/v1/leads`
+- `GET /api/v1/trials`
+- `POST /api/v1/trials`
+- `GET /api/v1/content-tasks`
+- `POST /api/v1/bootstrap`
+
+注意：
+
+- 现在仍然保留了旧的 `/dashboard` 静态页面
+- 但新的生产化方向已经转向：`数据库 + API + worker`
 
 ## 改哪些文件
 

@@ -1,9 +1,64 @@
 services:
-  robot-company:
+  api:
     build: .
-    container_name: robot-company
+    container_name: robot-company-api
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:8000"
     environment:
       TZ: "${TZ:-Asia/Shanghai}"
+      APP_ENV: "${APP_ENV:-production}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql+psycopg://robot:robot@postgres:5432/robot_company}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      STOCK_STRATEGY_GROWTH_CREW_HOME: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build: .
+    container_name: robot-company-worker
+    restart: unless-stopped
+    command: ["python", "-m", "stock_strategy_growth_crew.worker"]
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      APP_ENV: "${APP_ENV:-production}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql+psycopg://robot:robot@postgres:5432/robot_company}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      STOCK_STRATEGY_GROWTH_CREW_HOME: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:16
+    container_name: robot-company-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: robot_company
+      POSTGRES_USER: robot
+      POSTGRES_PASSWORD: robot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robot -d robot_company"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    container_name: robot-company-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+
