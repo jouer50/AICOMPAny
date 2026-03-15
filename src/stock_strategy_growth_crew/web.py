@@ -418,6 +418,54 @@ def build_live_app_html() -> str:
         </div>
       </div>
     </section>
+
+    <section class="layout">
+      <div class="card">
+        <h2 class="section-title">Update Trial</h2>
+        <form id="trial-form">
+          <div class="form-grid">
+            <div class="field">
+              <label for="trial-lead-id">Lead ID</label>
+              <input id="trial-lead-id" name="lead_id" placeholder="lead_002" required>
+            </div>
+            <div class="field">
+              <label for="trial-day">Days Since Signup</label>
+              <input id="trial-day" name="days_since_signup" type="number" min="0" value="1" required>
+            </div>
+            <div class="field">
+              <label for="trial-followup">Follow-up Day</label>
+              <input id="trial-followup" name="recommended_followup_day" placeholder="Day 3">
+            </div>
+            <div class="field">
+              <label for="trial-activated">Activated</label>
+              <select id="trial-activated" name="activated">
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </div>
+            <div class="field wide">
+              <label for="trial-features">Used Features</label>
+              <input id="trial-features" name="used_features" placeholder="教练指令, 执行计划">
+            </div>
+            <div class="field wide">
+              <label for="trial-goal">Recommended Goal</label>
+              <input id="trial-goal" name="recommended_goal" placeholder="引导用户体验持仓诊断">
+            </div>
+          </div>
+          <div class="actions">
+            <button class="button" type="submit">Update Trial</button>
+            <span class="status" id="trial-status">Ready</span>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Current Mode</h2>
+        <div class="item">
+          <strong>Production App Direction</strong>
+          <div class="muted">现在 `/app` 已经有两个真实写操作：创建 lead 和更新 trial。下一步可以继续补 content task 状态变更，再把静态 `/dashboard` 逐步淘汰。</div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <script>
@@ -550,9 +598,53 @@ def build_live_app_html() -> str:
       await loadDashboard();
     }
 
+    function parseCsv(value) {
+      return value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+
+    async function updateTrial(event) {
+      event.preventDefault();
+      const status = document.getElementById('trial-status');
+      const form = event.currentTarget;
+      const payload = {
+        lead_id: form.lead_id.value.trim(),
+        activated: form.activated.value === 'true',
+        days_since_signup: Number(form.days_since_signup.value || 0),
+        used_features: parseCsv(form.used_features.value),
+        risk_signals: [],
+        recommended_followup_day: form.recommended_followup_day.value.trim(),
+        recommended_goal: form.recommended_goal.value.trim(),
+      };
+
+      status.textContent = 'Submitting...';
+      const response = await fetch('/api/v1/trials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        let detail = `Failed: ${response.status}`;
+        try {
+          const body = await response.json();
+          detail = body.detail || detail;
+        } catch (_) {
+        }
+        status.textContent = detail;
+        return;
+      }
+
+      status.textContent = 'Trial updated';
+      await loadDashboard();
+    }
+
     document.getElementById('refresh-button').addEventListener('click', refreshDemo);
     document.getElementById('reload-button').addEventListener('click', loadDashboard);
     document.getElementById('lead-form').addEventListener('submit', createLead);
+    document.getElementById('trial-form').addEventListener('submit', updateTrial);
     loadDashboard().catch((error) => {
       document.getElementById('env-badge').textContent = 'Load Failed';
       document.getElementById('metric-grid').innerHTML = `<article class="card empty">${error.message}</article>`;

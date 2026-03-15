@@ -48,3 +48,38 @@ def test_create_lead() -> None:
         else:
             assert response.status_code == 201
             assert response.json()["id"] == "lead_test_api"
+
+
+def test_upsert_trial() -> None:
+    with TestClient(app) as client:
+        create_lead_response = client.post(
+            "/api/v1/leads",
+            json={
+                "id": "lead_trial_api",
+                "name": "试用用户",
+                "source": "API",
+                "stage": "trial",
+                "intent_score": 72,
+                "pain_points": [],
+                "last_action": "",
+                "next_best_action": "引导体验持仓诊断",
+            },
+        )
+        assert create_lead_response.status_code in (201, 409)
+
+        response = client.post(
+            "/api/v1/trials",
+            json={
+                "lead_id": "lead_trial_api",
+                "activated": True,
+                "days_since_signup": 3,
+                "used_features": ["教练指令", "执行计划"],
+                "risk_signals": [],
+                "recommended_followup_day": "Day 4",
+                "recommended_goal": "继续推进试用转付费",
+            },
+        )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["lead_id"] == "lead_trial_api"
+    assert payload["activated"] is True
