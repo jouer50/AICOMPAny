@@ -91,6 +91,9 @@ def ensure_seeded() -> None:
         seed_demo_data(db)
 
 
+ensure_seeded()
+
+
 def build_dashboard_payload(db: Session) -> DashboardPayload:
     leads = db.scalars(select(Lead).options(selectinload(Lead.trial_activity)).order_by(Lead.created_at.desc())).all()
     trials = db.scalars(select(TrialActivity).order_by(TrialActivity.updated_at.desc())).all()
@@ -232,4 +235,3 @@ def serve() -> None:
     import uvicorn
 
     uvicorn.run("stock_strategy_growth_crew.web:app", host="0.0.0.0", port=settings.app_port)
-
