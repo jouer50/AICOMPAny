@@ -9,7 +9,7 @@ from sqlalchemy import delete
 from stock_strategy_growth_crew.bootstrap import initialize_database, seed_demo_data
 from stock_strategy_growth_crew.db import SessionLocal
 from stock_strategy_growth_crew.main import demo_run
-from stock_strategy_growth_crew.models import ContentTask
+from stock_strategy_growth_crew.models import ContentTask, Lead, TrialActivity
 from stock_strategy_growth_crew.settings import settings
 
 
@@ -61,6 +61,28 @@ def _build_weekly_content_plan(brief: dict) -> list[dict]:
     ]
 
 
+def _classify_lead(lead: Lead, trial: TrialActivity | None) -> tuple[str, int, str]:
+    score = int(lead.intent_score or 0)
+    pain_points = json.loads(lead.pain_points or "[]") if lead.pain_points else []
+    if trial:
+        score += min(trial.days_since_signup * 2, 10)
+        if trial.activated:
+            score += 12
+        if trial.used_features:
+            used = json.loads(trial.used_features or "[]") if trial.used_features else []
+            score += min(len(used) * 4, 12)
+    score += min(len(pain_points) * 3, 9)
+    score = max(0, min(score, 100))
+
+    if score >= 85:
+        return "hot", score, "立即推进付费沟通，强调纪律改进和正式版边界"
+    if score >= 70:
+        return "trial", score, "推进试用关键动作，要求完成教练指令和持仓诊断"
+    if score >= 50:
+        return "warm", score, "继续教育和案例触达，引导进入试用"
+    return "cold", score, "降低触达频率，保留在内容培育池"
+
+
 @celery_app.task(name="robot_company.seed_demo_data")
 def seed_demo_data_task() -> str:
     initialize_database()
@@ -90,6 +112,23 @@ def generate_weekly_content_plan_task() -> dict:
         "content_task_count": len(plan),
         "channels": sorted({item["channel"] for item in plan}),
     }
+
+
+@celery_app.task(name="robot_company.triage_leads")
+def triage_leads_task() -> dict:
+    initialize_database()
+    updated = 0
+    with SessionLocal() as db:
+        leads = db.query(Lead).all()
+        for lead in leads:
+            trial = db.get(TrialActivity, lead.id)
+            stage, score, next_action = _classify_lead(lead, trial)
+            lead.stage = stage
+            lead.intent_score = score
+            lead.next_best_action = next_action
+            updated += 1
+        db.commit()
+    return {"status": "triaged", "lead_count": updated}
 
 
 def run_worker() -> None:
