@@ -79,6 +79,12 @@ class ContentTaskUpdate(BaseModel):
     status: str
 
 
+class AutomationJobRead(BaseModel):
+    task_id: str
+    status: str
+    result: dict | str | None = None
+
+
 class DashboardSummary(BaseModel):
     lead_count: int
     trial_count: int

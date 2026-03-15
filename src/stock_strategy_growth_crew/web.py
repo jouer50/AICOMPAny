@@ -19,6 +19,7 @@ from stock_strategy_growth_crew.db import SessionLocal, get_db
 from stock_strategy_growth_crew.main import demo_run
 from stock_strategy_growth_crew.models import ContentTask, Lead, TrialActivity
 from stock_strategy_growth_crew.schemas import (
+    AutomationJobRead,
     ContentTaskRead,
     ContentTaskUpdate,
     DashboardPayload,
@@ -30,6 +31,7 @@ from stock_strategy_growth_crew.schemas import (
     TrialActivityRead,
 )
 from stock_strategy_growth_crew.settings import settings
+from stock_strategy_growth_crew.worker import celery_app, generate_weekly_content_plan_task
 
 
 DASHBOARD_PATH = PROJECT_ROOT / "dashboard.html"
@@ -316,6 +318,9 @@ def build_live_app_html() -> str:
       color: var(--muted);
       font-size: 13px;
     }
+    .status.good {
+      color: #0f5132;
+    }
     .inline-row {
       display: flex;
       gap: 10px;
@@ -470,8 +475,16 @@ def build_live_app_html() -> str:
       <div class="card">
         <h2 class="section-title">Ops Notes</h2>
         <div class="item">
+          <strong>Robot Actions</strong>
+          <div class="muted">这里开始接入真正的机器人任务。先从“生成本周内容计划”开始，点击按钮后会由 worker 异步写回 content tasks。</div>
+          <div class="actions" style="margin-top:12px;">
+            <button class="button" id="plan-button" type="button">Generate Weekly Content Plan</button>
+            <span class="status" id="plan-status">Ready</span>
+          </div>
+        </div>
+        <div class="item">
           <strong>Current Backend Scope</strong>
-          <div class="muted">现在 `/app` 已经有四类真实写操作：创建 lead、更新 lead、更新 trial、更新 content task 状态。下一步更适合补认证、分页和真正的 worker 调度。</div>
+          <div class="muted">现在 `/app` 已经有四类真实写操作，再加上一条真正的 worker 任务：生成本周内容计划。</div>
         </div>
       </div>
     </section>
@@ -760,11 +773,66 @@ def build_live_app_html() -> str:
       await loadDashboard();
     }
 
+    async function pollJob(taskId) {
+      const status = document.getElementById('plan-status');
+      for (let i = 0; i < 12; i += 1) {
+        const response = await fetch(`/api/v1/jobs/${taskId}`, { cache: 'no-store' });
+        if (!response.ok) {
+          status.textContent = `Job check failed: ${response.status}`;
+          return;
+        }
+        const payload = await response.json();
+        status.textContent = `Job ${payload.status}`;
+        if (payload.status === 'SUCCESS') {
+          status.classList.add('good');
+          status.textContent = `Generated ${payload.result.content_task_count} tasks`;
+          await loadDashboard();
+          return;
+        }
+        if (payload.status === 'FAILURE') {
+          status.textContent = 'Job failed';
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      status.textContent = 'Job still running';
+    }
+
+    async function generateWeeklyPlan() {
+      const button = document.getElementById('plan-button');
+      const status = document.getElementById('plan-status');
+      button.disabled = true;
+      status.classList.remove('good');
+      status.textContent = 'Queueing...';
+
+      const response = await fetch('/api/v1/automation/content-plan', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        let detail = `Failed: ${response.status}`;
+        try {
+          const body = await response.json();
+          detail = body.detail || detail;
+        } catch (_) {
+        }
+        status.textContent = detail;
+        button.disabled = false;
+        return;
+      }
+
+      const payload = await response.json();
+      status.textContent = `Queued ${payload.task_id}`;
+      await pollJob(payload.task_id);
+      button.disabled = false;
+    }
+
     document.getElementById('refresh-button').addEventListener('click', refreshDemo);
     document.getElementById('reload-button').addEventListener('click', loadDashboard);
     document.getElementById('lead-form').addEventListener('submit', createLead);
     document.getElementById('lead-update-form').addEventListener('submit', updateLead);
     document.getElementById('trial-form').addEventListener('submit', updateTrial);
+    document.getElementById('plan-button').addEventListener('click', generateWeeklyPlan);
     loadDashboard().catch((error) => {
       document.getElementById('env-badge').textContent = 'Load Failed';
       document.getElementById('metric-grid').innerHTML = `<article class="card empty">${error.message}</article>`;
@@ -1144,6 +1212,21 @@ def update_content_task(task_id: int, payload: ContentTaskUpdate, request: Reque
     db.commit()
     db.refresh(task)
     return _serialize_content_task(task)
+
+
+@app.post("/api/v1/automation/content-plan", response_model=AutomationJobRead)
+def trigger_content_plan(request: Request) -> AutomationJobRead:
+    require_admin_api(request)
+    result = generate_weekly_content_plan_task.delay()
+    return AutomationJobRead(task_id=result.id, status=result.status)
+
+
+@app.get("/api/v1/jobs/{task_id}", response_model=AutomationJobRead)
+def read_job_status(task_id: str, request: Request) -> AutomationJobRead:
+    require_admin_api(request)
+    result = celery_app.AsyncResult(task_id)
+    payload = result.result if isinstance(result.result, (dict, str)) else None
+    return AutomationJobRead(task_id=task_id, status=result.status, result=payload)
 
 
 def serve() -> None:

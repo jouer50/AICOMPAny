@@ -166,3 +166,19 @@ def test_update_content_task() -> None:
         response = client.patch(f"/api/v1/content-tasks/{task_id}", json={"status": "published"})
     assert response.status_code == 200
     assert response.json()["status"] == "published"
+
+
+def test_trigger_content_plan_job() -> None:
+    with TestClient(app) as client:
+        login(client)
+        response = client.post("/api/v1/automation/content-plan")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["task_id"]
+        assert payload["status"] in ("SUCCESS", "PENDING")
+
+        job_response = client.get(f"/api/v1/jobs/{payload['task_id']}")
+    assert job_response.status_code == 200
+    job_payload = job_response.json()
+    assert job_payload["task_id"] == payload["task_id"]
+    assert job_payload["status"] in ("SUCCESS", "PENDING")
