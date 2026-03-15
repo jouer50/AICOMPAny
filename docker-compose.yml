@@ -11,6 +11,9 @@ services:
       DATABASE_URL: "${DATABASE_URL:-postgresql+psycopg://robot:robot@postgres:5432/robot_company}"
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
       STOCK_STRATEGY_GROWTH_CREW_HOME: /app
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-change-me}"
+      SESSION_SECRET: "${SESSION_SECRET:-robot-company-session-secret}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -28,6 +31,9 @@ services:
       DATABASE_URL: "${DATABASE_URL:-postgresql+psycopg://robot:robot@postgres:5432/robot_company}"
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
       STOCK_STRATEGY_GROWTH_CREW_HOME: /app
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-change-me}"
+      SESSION_SECRET: "${SESSION_SECRET:-robot-company-session-secret}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,4 +67,3 @@ services:
 volumes:
   postgres_data:
   redis_data:
-

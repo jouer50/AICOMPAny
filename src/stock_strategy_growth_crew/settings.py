@@ -11,9 +11,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "Robot Company API"
-    app_env: str = "development"
-    app_port: int = 8000
+    app_name: str = Field(default="Robot Company API", alias="APP_NAME")
+    app_env: str = Field(default="development", alias="APP_ENV")
+    app_port: int = Field(default=8000, alias="APP_PORT")
     database_url: str = Field(
         default="sqlite:///./robot_company.db",
         alias="DATABASE_URL",
