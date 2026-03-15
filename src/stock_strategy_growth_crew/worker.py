@@ -98,6 +98,25 @@ def _build_trial_followup(trial: TrialActivity) -> tuple[str, str]:
     return "Day 7", "推进正式版成交，强调长期纪律和复盘价值"
 
 
+def _build_sales_conversion_action(lead: Lead, trial: TrialActivity | None) -> tuple[str, int]:
+    score = int(lead.intent_score or 0)
+    if trial:
+        if trial.activated:
+            score += 8
+        if trial.used_features:
+            used = json.loads(trial.used_features or "[]") if trial.used_features else []
+            score += min(len(used) * 3, 9)
+    score = max(0, min(score, 100))
+
+    if score >= 90:
+        return "直接推进成交，给出正式版价值边界、价格和下一步开通动作", score
+    if score >= 80:
+        return "安排成交沟通，强调正式版能持续纠偏和复盘，不再只停留在试用体验", score
+    if score >= 70:
+        return "先推动完成关键功能体验，再收集异议准备成交", score
+    return "继续内容培育，不进入强销售推进", score
+
+
 @celery_app.task(name="robot_company.seed_demo_data")
 def seed_demo_data_task() -> str:
     initialize_database()
@@ -159,6 +178,24 @@ def generate_trial_followup_task() -> dict:
             updated += 1
         db.commit()
     return {"status": "followup_generated", "trial_count": updated}
+
+
+@celery_app.task(name="robot_company.generate_sales_conversion")
+def generate_sales_conversion_task() -> dict:
+    initialize_database()
+    updated = 0
+    with SessionLocal() as db:
+        leads = db.query(Lead).all()
+        for lead in leads:
+            trial = db.get(TrialActivity, lead.id)
+            next_action, score = _build_sales_conversion_action(lead, trial)
+            lead.intent_score = score
+            if score >= 85:
+                lead.stage = "hot"
+            lead.next_best_action = next_action
+            updated += 1
+        db.commit()
+    return {"status": "sales_conversion_generated", "lead_count": updated}
 
 
 def run_worker() -> None:
