@@ -221,6 +221,15 @@ docker compose logs -f
   - `ADMIN_USERNAME`
   - `ADMIN_PASSWORD`
   - `SESSION_SECRET`
+- 真实模型入口也已经接上：
+  - `LLM_PROVIDER`
+  - `LLM_BASE_URL`
+  - `LLM_API_KEY`
+  - `LLM_MODEL`
+- 当前优先被真实模型接管的是：
+  - `Generate Weekly Content Plan`
+  - 有 key 时走 OpenAI 兼容接口
+  - 没 key 或调用失败时自动回退规则生成
 - 新的生产化方向已经转向：`数据库 + API + worker`
 
 ## 改哪些文件

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from stock_strategy_growth_crew.bootstrap import PROJECT_ROOT, initialize_database, seed_demo_data
 from stock_strategy_growth_crew.db import SessionLocal, get_db
+from stock_strategy_growth_crew.llm import get_llm_status
 from stock_strategy_growth_crew.main import demo_run
 from stock_strategy_growth_crew.models import ContentTask, Lead, TrialActivity
 from stock_strategy_growth_crew.schemas import (
@@ -24,6 +25,7 @@ from stock_strategy_growth_crew.schemas import (
     ContentTaskUpdate,
     DashboardPayload,
     DashboardSummary,
+    LLMStatusRead,
     LeadCreate,
     LeadRead,
     LeadUpdate,
@@ -1199,6 +1201,12 @@ def build_login_html() -> str:
 @app.get("/healthz")
 def healthz() -> dict:
     return {"status": "ok", "env": settings.app_env}
+
+
+@app.get("/api/v1/llm/status", response_model=LLMStatusRead)
+def read_llm_status(request: Request) -> LLMStatusRead:
+    require_admin_api(request)
+    return LLMStatusRead(**get_llm_status())
 
 
 @app.get("/login", response_class=HTMLResponse, response_model=None)

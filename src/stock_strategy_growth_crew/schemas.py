@@ -85,6 +85,13 @@ class AutomationJobRead(BaseModel):
     result: dict | str | None = None
 
 
+class LLMStatusRead(BaseModel):
+    configured: bool
+    provider: str
+    model: str
+    base_url: str
+
+
 class DashboardSummary(BaseModel):
     lead_count: int
     trial_count: int

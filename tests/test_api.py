@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 from stock_strategy_growth_crew.web import app
@@ -45,6 +47,22 @@ def test_dashboard_requires_auth() -> None:
     with TestClient(app) as client:
         response = client.get("/api/v1/dashboard")
     assert response.status_code == 401
+
+
+def test_llm_status_requires_auth() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/v1/llm/status")
+    assert response.status_code == 401
+
+
+def test_llm_status_payload() -> None:
+    with TestClient(app) as client:
+        login(client)
+        response = client.get("/api/v1/llm/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "openai_compatible"
+    assert "base_url" in payload
 
 
 def test_dashboard_payload() -> None:
@@ -169,19 +187,34 @@ def test_update_content_task() -> None:
 
 
 def test_trigger_content_plan_job() -> None:
-    with TestClient(app) as client:
-        login(client)
-        response = client.post("/api/v1/automation/content-plan")
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["task_id"]
-        assert payload["status"] in ("SUCCESS", "PENDING")
+    fake_plan = [
+        {
+            "scheduled_day": "Mon",
+            "channel": "X",
+            "title": "LLM 首周内容计划",
+            "owner": "x_editor",
+            "cta": "申请试用",
+            "status": "planned",
+        }
+    ]
+    with patch("stock_strategy_growth_crew.worker.llm_is_configured", return_value=True), patch(
+        "stock_strategy_growth_crew.worker.generate_weekly_content_plan_with_llm",
+        return_value=fake_plan,
+    ):
+        with TestClient(app) as client:
+            login(client)
+            response = client.post("/api/v1/automation/content-plan")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["task_id"]
+            assert payload["status"] in ("SUCCESS", "PENDING")
 
-        job_response = client.get(f"/api/v1/jobs/{payload['task_id']}")
+            job_response = client.get(f"/api/v1/jobs/{payload['task_id']}")
     assert job_response.status_code == 200
     job_payload = job_response.json()
     assert job_payload["task_id"] == payload["task_id"]
     assert job_payload["status"] in ("SUCCESS", "PENDING")
+    assert job_payload["result"]["mode"] == "llm"
 
 
 def test_trigger_lead_triage_job() -> None:

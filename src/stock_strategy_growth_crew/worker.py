@@ -8,6 +8,7 @@ from sqlalchemy import delete
 
 from stock_strategy_growth_crew.bootstrap import initialize_database, seed_demo_data
 from stock_strategy_growth_crew.db import SessionLocal
+from stock_strategy_growth_crew.llm import generate_weekly_content_plan_with_llm, llm_is_configured
 from stock_strategy_growth_crew.main import demo_run
 from stock_strategy_growth_crew.models import ContentTask, Lead, TrialActivity
 from stock_strategy_growth_crew.settings import settings
@@ -139,17 +140,31 @@ def generate_weekly_content_plan_task() -> dict:
 def _run_weekly_content_plan() -> dict:
     initialize_database()
     brief = _load_campaign_brief()
-    plan = _build_weekly_content_plan(brief)
+    plan = []
+    mode = "rules"
+    fallback_reason = None
+    if llm_is_configured():
+        try:
+            plan = generate_weekly_content_plan_with_llm(brief)
+            mode = "llm"
+        except Exception as exc:
+            fallback_reason = str(exc)
+    if not plan:
+        plan = _build_weekly_content_plan(brief)
     with SessionLocal() as db:
         db.execute(delete(ContentTask))
         for item in plan:
             db.add(ContentTask(**item))
         db.commit()
-    return {
+    payload = {
         "status": "generated",
+        "mode": mode,
         "content_task_count": len(plan),
         "channels": sorted({item["channel"] for item in plan}),
     }
+    if fallback_reason:
+        payload["fallback_reason"] = fallback_reason
+    return payload
 
 
 @celery_app.task(name="robot_company.triage_leads")
