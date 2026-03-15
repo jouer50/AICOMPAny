@@ -22,6 +22,7 @@ from stock_strategy_growth_crew.schemas import (
     DashboardSummary,
     LeadCreate,
     LeadRead,
+    LeadUpdate,
     TrialActivityCreate,
     TrialActivityRead,
 )
@@ -431,6 +432,49 @@ def build_live_app_html() -> str:
 
     <section class="layout">
       <div class="card">
+        <h2 class="section-title">Update Lead</h2>
+        <form id="lead-update-form">
+          <div class="form-grid">
+            <div class="field">
+              <label for="lead-update-id">Lead ID</label>
+              <input id="lead-update-id" name="lead_id" placeholder="lead_001" required>
+            </div>
+            <div class="field">
+              <label for="lead-update-stage">Stage</label>
+              <select id="lead-update-stage" name="stage">
+                <option value="warm">温线索</option>
+                <option value="trial">试用中</option>
+                <option value="hot">高意向</option>
+                <option value="cold">冷线索</option>
+                <option value="paid">已付费</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="lead-update-intent">Intent Score</label>
+              <input id="lead-update-intent" name="intent_score" type="number" min="0" max="100" value="75" required>
+            </div>
+            <div class="field wide">
+              <label for="lead-update-next">Next Action</label>
+              <input id="lead-update-next" name="next_best_action" placeholder="推进试用转付费" required>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="button" type="submit">Update Lead</button>
+            <span class="status" id="lead-update-status">Ready</span>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Ops Notes</h2>
+        <div class="item">
+          <strong>Current Backend Scope</strong>
+          <div class="muted">现在 `/app` 已经有四类真实写操作：创建 lead、更新 lead、更新 trial、更新 content task 状态。下一步更适合补认证、分页和真正的 worker 调度。</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="card">
         <h2 class="section-title">Update Trial</h2>
         <form id="trial-form">
           <div class="form-grid">
@@ -668,6 +712,39 @@ def build_live_app_html() -> str:
       await loadDashboard();
     }
 
+    async function updateLead(event) {
+      event.preventDefault();
+      const status = document.getElementById('lead-update-status');
+      const form = event.currentTarget;
+      const leadId = form.lead_id.value.trim();
+      const payload = {
+        stage: form.stage.value,
+        intent_score: Number(form.intent_score.value || 0),
+        next_best_action: form.next_best_action.value.trim(),
+      };
+
+      status.textContent = 'Submitting...';
+      const response = await fetch(`/api/v1/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        let detail = `Failed: ${response.status}`;
+        try {
+          const body = await response.json();
+          detail = body.detail || detail;
+        } catch (_) {
+        }
+        status.textContent = detail;
+        return;
+      }
+
+      status.textContent = 'Lead updated';
+      await loadDashboard();
+    }
+
     async function updateTaskStatus(taskId, status) {
       const response = await fetch(`/api/v1/content-tasks/${taskId}`, {
         method: 'PATCH',
@@ -683,6 +760,7 @@ def build_live_app_html() -> str:
     document.getElementById('refresh-button').addEventListener('click', refreshDemo);
     document.getElementById('reload-button').addEventListener('click', loadDashboard);
     document.getElementById('lead-form').addEventListener('submit', createLead);
+    document.getElementById('lead-update-form').addEventListener('submit', updateLead);
     document.getElementById('trial-form').addEventListener('submit', updateTrial);
     loadDashboard().catch((error) => {
       document.getElementById('env-badge').textContent = 'Load Failed';
@@ -812,6 +890,20 @@ def create_lead(payload: LeadCreate, db: Session = Depends(get_db)) -> LeadRead:
         next_best_action=payload.next_best_action,
     )
     db.add(lead)
+    db.commit()
+    db.refresh(lead)
+    return _serialize_lead(lead)
+
+
+@app.patch("/api/v1/leads/{lead_id}", response_model=LeadRead)
+def update_lead(lead_id: str, payload: LeadUpdate, db: Session = Depends(get_db)) -> LeadRead:
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    lead.stage = payload.stage
+    lead.intent_score = payload.intent_score
+    lead.next_best_action = payload.next_best_action
     db.commit()
     db.refresh(lead)
     return _serialize_lead(lead)

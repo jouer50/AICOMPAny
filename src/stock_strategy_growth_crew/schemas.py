@@ -45,6 +45,12 @@ class LeadCreate(BaseModel):
     next_best_action: str = ""
 
 
+class LeadUpdate(BaseModel):
+    stage: str
+    intent_score: int
+    next_best_action: str = ""
+
+
 class TrialActivityCreate(BaseModel):
     lead_id: str
     activated: bool = False

@@ -64,6 +64,38 @@ def test_create_lead() -> None:
             assert response.json()["id"] == "lead_test_api"
 
 
+def test_update_lead() -> None:
+    with TestClient(app) as client:
+        create_response = client.post(
+            "/api/v1/leads",
+            json={
+                "id": "lead_update_api",
+                "name": "待更新线索",
+                "source": "API",
+                "stage": "warm",
+                "intent_score": 55,
+                "pain_points": [],
+                "last_action": "",
+                "next_best_action": "等待更新",
+            },
+        )
+        assert create_response.status_code in (201, 409)
+
+        response = client.patch(
+            "/api/v1/leads/lead_update_api",
+            json={
+                "stage": "hot",
+                "intent_score": 92,
+                "next_best_action": "立即推进正式版成交",
+            },
+        )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == "lead_update_api"
+    assert payload["stage"] == "hot"
+    assert payload["intent_score"] == 92
+
+
 def test_upsert_trial() -> None:
     with TestClient(app) as client:
         create_lead_response = client.post(
