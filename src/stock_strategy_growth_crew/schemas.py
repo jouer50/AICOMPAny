@@ -69,6 +69,10 @@ class ContentTaskRead(BaseModel):
     updated_at: datetime
 
 
+class ContentTaskUpdate(BaseModel):
+    status: str
+
+
 class DashboardSummary(BaseModel):
     lead_count: int
     trial_count: int
@@ -82,4 +86,3 @@ class DashboardPayload(BaseModel):
     leads: list[LeadRead]
     trials: list[TrialActivityRead]
     content_tasks: list[ContentTaskRead]
-

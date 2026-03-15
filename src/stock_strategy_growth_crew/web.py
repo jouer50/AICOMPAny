@@ -16,6 +16,7 @@ from stock_strategy_growth_crew.main import demo_run
 from stock_strategy_growth_crew.models import ContentTask, Lead, TrialActivity
 from stock_strategy_growth_crew.schemas import (
     ContentTaskRead,
+    ContentTaskUpdate,
     DashboardPayload,
     DashboardSummary,
     LeadCreate,
@@ -268,6 +269,10 @@ def build_live_app_html() -> str:
       background: #e8efe9;
       color: #173e30;
     }
+    .button.small {
+      padding: 8px 12px;
+      font-size: 12px;
+    }
     .form-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -308,6 +313,13 @@ def build_live_app_html() -> str:
     .status {
       color: var(--muted);
       font-size: 13px;
+    }
+    .inline-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 10px;
     }
     .footer-note {
       margin-top: 16px;
@@ -531,9 +543,26 @@ def build_live_app_html() -> str:
               <strong>${task.title}</strong>
               <small>${task.channel} · ${task.scheduled_day || '未排期'} · ${task.status}</small>
               <div class="muted">CTA：${task.cta || '暂无'}</div>
+              <div class="inline-row">
+                <select data-task-status="${task.id}">
+                  <option value="planned" ${task.status === 'planned' ? 'selected' : ''}>planned</option>
+                  <option value="draft" ${task.status === 'draft' ? 'selected' : ''}>draft</option>
+                  <option value="review" ${task.status === 'review' ? 'selected' : ''}>review</option>
+                  <option value="published" ${task.status === 'published' ? 'selected' : ''}>published</option>
+                </select>
+                <button class="button small secondary" type="button" data-task-save="${task.id}">Update Status</button>
+              </div>
             </article>
           `).join('')
         : '<div class="empty">No content tasks yet.</div>';
+
+      document.querySelectorAll('[data-task-save]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const taskId = button.getAttribute('data-task-save');
+          const select = document.querySelector(`[data-task-status="${taskId}"]`);
+          await updateTaskStatus(taskId, select.value);
+        });
+      });
     }
 
     async function loadDashboard() {
@@ -638,6 +667,18 @@ def build_live_app_html() -> str:
       }
 
       status.textContent = 'Trial updated';
+      await loadDashboard();
+    }
+
+    async function updateTaskStatus(taskId, status) {
+      const response = await fetch(`/api/v1/content-tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        return;
+      }
       await loadDashboard();
     }
 
@@ -803,6 +844,18 @@ def upsert_trial(payload: TrialActivityCreate, db: Session = Depends(get_db)) ->
 def list_content_tasks(db: Session = Depends(get_db)) -> list[ContentTaskRead]:
     tasks = db.scalars(select(ContentTask).order_by(ContentTask.created_at.desc())).all()
     return [_serialize_content_task(task) for task in tasks]
+
+
+@app.patch("/api/v1/content-tasks/{task_id}", response_model=ContentTaskRead)
+def update_content_task(task_id: int, payload: ContentTaskUpdate, db: Session = Depends(get_db)) -> ContentTaskRead:
+    task = db.get(ContentTask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Content task not found")
+
+    task.status = payload.status
+    db.commit()
+    db.refresh(task)
+    return _serialize_content_task(task)
 
 
 def serve() -> None:

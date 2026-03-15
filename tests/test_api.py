@@ -83,3 +83,13 @@ def test_upsert_trial() -> None:
     payload = response.json()
     assert payload["lead_id"] == "lead_trial_api"
     assert payload["activated"] is True
+
+
+def test_update_content_task() -> None:
+    with TestClient(app) as client:
+        tasks = client.get("/api/v1/content-tasks").json()
+        assert tasks
+        task_id = tasks[0]["id"]
+        response = client.patch(f"/api/v1/content-tasks/{task_id}", json={"status": "published"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "published"
