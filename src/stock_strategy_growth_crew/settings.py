@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     )
     llm_model: str = Field(default="gpt-4o-mini", alias="LLM_MODEL")
     llm_timeout_seconds: int = Field(default=45, alias="LLM_TIMEOUT_SECONDS")
+    automation_schedule_enabled: bool = Field(default=False, alias="AUTOMATION_SCHEDULE_ENABLED")
+    automation_schedule_interval_minutes: int = Field(default=1440, alias="AUTOMATION_SCHEDULE_INTERVAL_MINUTES")
 
 
 settings = Settings()

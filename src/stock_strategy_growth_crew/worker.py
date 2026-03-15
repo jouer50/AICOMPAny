@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
+from datetime import datetime
 from pathlib import Path
 
 from celery import Celery
@@ -16,7 +19,7 @@ from stock_strategy_growth_crew.llm import (
     triage_lead_with_llm,
 )
 from stock_strategy_growth_crew.main import demo_run
-from stock_strategy_growth_crew.models import ContentTask, Lead, TrialActivity
+from stock_strategy_growth_crew.models import AutomationRun, ContentTask, Lead, TrialActivity
 from stock_strategy_growth_crew.settings import settings
 
 
@@ -27,6 +30,8 @@ celery_app.conf.update(
     task_always_eager=settings.app_env == "test",
     task_store_eager_result=True,
 )
+
+_scheduler_started = False
 
 
 def _load_campaign_brief() -> dict:
@@ -124,6 +129,55 @@ def _build_sales_conversion_action(lead: Lead, trial: TrialActivity | None) -> t
     return "继续内容培育，不进入强销售推进", score
 
 
+def _record_run(task_id: str, run_type: str, trigger_source: str, status: str, mode: str = "rules", result: dict | None = None, error_message: str = "") -> None:
+    initialize_database()
+    with SessionLocal() as db:
+        record = db.query(AutomationRun).filter(AutomationRun.task_id == task_id).one_or_none()
+        if not record:
+            record = AutomationRun(
+                task_id=task_id,
+                run_type=run_type,
+                trigger_source=trigger_source,
+            )
+            db.add(record)
+        record.status = status
+        record.mode = mode
+        record.error_message = error_message
+        record.result_json = json.dumps(result or {}, ensure_ascii=True)
+        if status in {"SUCCESS", "FAILURE"}:
+            record.completed_at = datetime.utcnow()
+        db.commit()
+
+
+def _execute_robot_task(task_id: str, run_type: str, trigger_source: str, fn) -> dict:
+    _record_run(task_id, run_type, trigger_source, "STARTED")
+    try:
+        result = fn()
+        _record_run(task_id, run_type, trigger_source, "SUCCESS", mode=result.get("mode", "rules"), result=result)
+        return result
+    except Exception as exc:
+        _record_run(task_id, run_type, trigger_source, "FAILURE", error_message=str(exc))
+        raise
+
+
+def _schedule_loop() -> None:
+    while True:
+        try:
+            run_full_daily_ops_task.delay(trigger_source="scheduled")
+        except Exception:
+            pass
+        time.sleep(max(settings.automation_schedule_interval_minutes, 1) * 60)
+
+
+def start_scheduler_if_enabled() -> None:
+    global _scheduler_started
+    if _scheduler_started or settings.app_env == "test" or not settings.automation_schedule_enabled:
+        return
+    thread = threading.Thread(target=_schedule_loop, daemon=True, name="robot-company-scheduler")
+    thread.start()
+    _scheduler_started = True
+
+
 @celery_app.task(name="robot_company.seed_demo_data")
 def seed_demo_data_task() -> str:
     initialize_database()
@@ -138,9 +192,9 @@ def generate_demo_outputs_task() -> str:
     return "generated"
 
 
-@celery_app.task(name="robot_company.generate_weekly_content_plan")
-def generate_weekly_content_plan_task() -> dict:
-    return _run_weekly_content_plan()
+@celery_app.task(name="robot_company.generate_weekly_content_plan", bind=True)
+def generate_weekly_content_plan_task(self, trigger_source: str = "manual") -> dict:
+    return _execute_robot_task(self.request.id, "content_plan", trigger_source, _run_weekly_content_plan)
 
 
 def _run_weekly_content_plan() -> dict:
@@ -173,9 +227,9 @@ def _run_weekly_content_plan() -> dict:
     return payload
 
 
-@celery_app.task(name="robot_company.triage_leads")
-def triage_leads_task() -> dict:
-    return _run_lead_triage()
+@celery_app.task(name="robot_company.triage_leads", bind=True)
+def triage_leads_task(self, trigger_source: str = "manual") -> dict:
+    return _execute_robot_task(self.request.id, "lead_triage", trigger_source, _run_lead_triage)
 
 
 def _run_lead_triage() -> dict:
@@ -230,9 +284,9 @@ def _run_lead_triage() -> dict:
     return payload
 
 
-@celery_app.task(name="robot_company.generate_trial_followup")
-def generate_trial_followup_task() -> dict:
-    return _run_trial_followup()
+@celery_app.task(name="robot_company.generate_trial_followup", bind=True)
+def generate_trial_followup_task(self, trigger_source: str = "manual") -> dict:
+    return _execute_robot_task(self.request.id, "trial_followup", trigger_source, _run_trial_followup)
 
 
 def _run_trial_followup() -> dict:
@@ -274,9 +328,9 @@ def _run_trial_followup() -> dict:
     return payload
 
 
-@celery_app.task(name="robot_company.generate_sales_conversion")
-def generate_sales_conversion_task() -> dict:
-    return _run_sales_conversion()
+@celery_app.task(name="robot_company.generate_sales_conversion", bind=True)
+def generate_sales_conversion_task(self, trigger_source: str = "manual") -> dict:
+    return _execute_robot_task(self.request.id, "sales_conversion", trigger_source, _run_sales_conversion)
 
 
 def _run_sales_conversion() -> dict:
@@ -333,22 +387,33 @@ def _run_sales_conversion() -> dict:
     return payload
 
 
-@celery_app.task(name="robot_company.run_full_daily_ops")
-def run_full_daily_ops_task() -> dict:
-    content_result = _run_weekly_content_plan()
-    triage_result = _run_lead_triage()
-    followup_result = _run_trial_followup()
-    sales_result = _run_sales_conversion()
-    return {
-        "status": "daily_ops_completed",
-        "content_task_count": content_result.get("content_task_count", 0),
-        "triaged_leads": triage_result.get("lead_count", 0),
-        "followup_trials": followup_result.get("trial_count", 0),
-        "sales_leads": sales_result.get("lead_count", 0),
-    }
+@celery_app.task(name="robot_company.run_full_daily_ops", bind=True)
+def run_full_daily_ops_task(self, trigger_source: str = "manual") -> dict:
+    def _run_all() -> dict:
+        content_result = _run_weekly_content_plan()
+        triage_result = _run_lead_triage()
+        followup_result = _run_trial_followup()
+        sales_result = _run_sales_conversion()
+        mode = "llm" if "llm" in {
+            content_result.get("mode"),
+            triage_result.get("mode"),
+            followup_result.get("mode"),
+            sales_result.get("mode"),
+        } else "rules"
+        return {
+            "status": "daily_ops_completed",
+            "mode": mode,
+            "content_task_count": content_result.get("content_task_count", 0),
+            "triaged_leads": triage_result.get("lead_count", 0),
+            "followup_trials": followup_result.get("trial_count", 0),
+            "sales_leads": sales_result.get("lead_count", 0),
+        }
+
+    return _execute_robot_task(self.request.id, "daily_ops", trigger_source, _run_all)
 
 
 def run_worker() -> None:
+    start_scheduler_if_enabled()
     celery_app.worker_main(
         [
             "worker",

@@ -18,9 +18,10 @@ from stock_strategy_growth_crew.bootstrap import PROJECT_ROOT, initialize_databa
 from stock_strategy_growth_crew.db import SessionLocal, get_db
 from stock_strategy_growth_crew.llm import get_llm_status
 from stock_strategy_growth_crew.main import demo_run
-from stock_strategy_growth_crew.models import ContentTask, Lead, TrialActivity
+from stock_strategy_growth_crew.models import AutomationRun, ContentTask, Lead, TrialActivity
 from stock_strategy_growth_crew.schemas import (
     AutomationJobRead,
+    AutomationRunRead,
     ContentTaskRead,
     ContentTaskUpdate,
     DashboardPayload,
@@ -88,6 +89,10 @@ def _serialize_trial(trial: TrialActivity) -> TrialActivityRead:
 
 def _serialize_content_task(task: ContentTask) -> ContentTaskRead:
     return ContentTaskRead.model_validate(task)
+
+
+def _serialize_automation_run(run: AutomationRun) -> AutomationRunRead:
+    return AutomationRunRead.model_validate(run)
 
 
 def refresh_demo_assets() -> None:
@@ -485,7 +490,7 @@ def build_live_app_html() -> str:
         <h2 class="section-title">Ops Notes</h2>
         <div class="item">
           <strong>Robot Actions</strong>
-          <div class="muted">这里开始接入真正的机器人任务。现在有两条：生成本周内容计划，以及按试用/行为信号重排线索优先级。</div>
+          <div class="muted">这里已经接入 5 条机器人动作，并且支持模型增强和自动排班。</div>
           <div class="actions" style="margin-top:12px;">
             <button class="button" id="plan-button" type="button">Generate Weekly Content Plan</button>
             <span class="status" id="plan-status">Ready</span>
@@ -509,7 +514,11 @@ def build_live_app_html() -> str:
         </div>
         <div class="item">
           <strong>Current Backend Scope</strong>
-          <div class="muted">现在 `/app` 已经有四类真实写操作，再加上四条单独机器人任务和一条总调度任务：内容计划、线索分层、试用跟进、成交推进、Full Daily Ops。</div>
+          <div class="muted">现在 `/app` 已经有四类真实写操作，再加上四条单独机器人任务、一条总调度任务，以及自动值班调度。</div>
+        </div>
+        <div class="item">
+          <strong>Recent Automation Runs</strong>
+          <div id="run-list" class="trial-list"><div class="empty">No automation runs yet.</div></div>
         </div>
       </div>
     </section>
@@ -638,6 +647,17 @@ def build_live_app_html() -> str:
             </article>
           `).join('')
         : '<div class="empty">No content tasks yet.</div>';
+
+      document.getElementById('run-list').innerHTML = payload.automation_runs.length
+        ? payload.automation_runs.map((run) => `
+            <article class="item">
+              <strong>${run.run_type}</strong>
+              <small>${run.trigger_source} · ${run.status} · ${run.mode}</small>
+              <div class="muted">task_id: ${run.task_id}</div>
+              <div class="muted">${run.error_message || run.result_json || 'No details yet.'}</div>
+            </article>
+          `).join('')
+        : '<div class="empty">No automation runs yet.</div>';
 
       document.querySelectorAll('[data-task-save]').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -1020,6 +1040,7 @@ def build_dashboard_payload(db: Session) -> DashboardPayload:
     leads = db.scalars(select(Lead).options(selectinload(Lead.trial_activity)).order_by(Lead.created_at.desc())).all()
     trials = db.scalars(select(TrialActivity).order_by(TrialActivity.updated_at.desc())).all()
     content_tasks = db.scalars(select(ContentTask).order_by(ContentTask.created_at.desc())).all()
+    automation_runs = db.scalars(select(AutomationRun).order_by(AutomationRun.created_at.desc()).limit(8)).all()
 
     hot_leads = [lead for lead in leads if lead.stage == "hot"]
     trial_leads = [lead for lead in leads if lead.stage == "trial"]
@@ -1036,6 +1057,7 @@ def build_dashboard_payload(db: Session) -> DashboardPayload:
         leads=[_serialize_lead(lead) for lead in leads],
         trials=[_serialize_trial(trial) for trial in trials],
         content_tasks=[_serialize_content_task(task) for task in content_tasks],
+        automation_runs=[_serialize_automation_run(run) for run in automation_runs],
     )
 
 @asynccontextmanager
@@ -1372,6 +1394,13 @@ def list_content_tasks(request: Request, db: Session = Depends(get_db)) -> list[
     return [_serialize_content_task(task) for task in tasks]
 
 
+@app.get("/api/v1/automation/runs", response_model=list[AutomationRunRead])
+def list_automation_runs(request: Request, db: Session = Depends(get_db)) -> list[AutomationRunRead]:
+    require_admin_api(request)
+    runs = db.scalars(select(AutomationRun).order_by(AutomationRun.created_at.desc()).limit(30)).all()
+    return [_serialize_automation_run(run) for run in runs]
+
+
 @app.patch("/api/v1/content-tasks/{task_id}", response_model=ContentTaskRead)
 def update_content_task(task_id: int, payload: ContentTaskUpdate, request: Request, db: Session = Depends(get_db)) -> ContentTaskRead:
     require_admin_api(request)
@@ -1388,35 +1417,35 @@ def update_content_task(task_id: int, payload: ContentTaskUpdate, request: Reque
 @app.post("/api/v1/automation/content-plan", response_model=AutomationJobRead)
 def trigger_content_plan(request: Request) -> AutomationJobRead:
     require_admin_api(request)
-    result = generate_weekly_content_plan_task.delay()
+    result = generate_weekly_content_plan_task.delay(trigger_source="manual")
     return AutomationJobRead(task_id=result.id, status=result.status)
 
 
 @app.post("/api/v1/automation/lead-triage", response_model=AutomationJobRead)
 def trigger_lead_triage(request: Request) -> AutomationJobRead:
     require_admin_api(request)
-    result = triage_leads_task.delay()
+    result = triage_leads_task.delay(trigger_source="manual")
     return AutomationJobRead(task_id=result.id, status=result.status)
 
 
 @app.post("/api/v1/automation/trial-followup", response_model=AutomationJobRead)
 def trigger_trial_followup(request: Request) -> AutomationJobRead:
     require_admin_api(request)
-    result = generate_trial_followup_task.delay()
+    result = generate_trial_followup_task.delay(trigger_source="manual")
     return AutomationJobRead(task_id=result.id, status=result.status)
 
 
 @app.post("/api/v1/automation/sales-conversion", response_model=AutomationJobRead)
 def trigger_sales_conversion(request: Request) -> AutomationJobRead:
     require_admin_api(request)
-    result = generate_sales_conversion_task.delay()
+    result = generate_sales_conversion_task.delay(trigger_source="manual")
     return AutomationJobRead(task_id=result.id, status=result.status)
 
 
 @app.post("/api/v1/automation/daily-ops", response_model=AutomationJobRead)
 def trigger_daily_ops(request: Request) -> AutomationJobRead:
     require_admin_api(request)
-    result = run_full_daily_ops_task.delay()
+    result = run_full_daily_ops_task.delay(trigger_source="manual")
     return AutomationJobRead(task_id=result.id, status=result.status)
 
 

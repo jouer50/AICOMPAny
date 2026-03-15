@@ -85,6 +85,22 @@ class AutomationJobRead(BaseModel):
     result: dict | str | None = None
 
 
+class AutomationRunRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    task_id: str
+    run_type: str
+    trigger_source: str
+    status: str
+    mode: str
+    result_json: str
+    error_message: str
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+
+
 class LLMStatusRead(BaseModel):
     configured: bool
     provider: str
@@ -105,3 +121,4 @@ class DashboardPayload(BaseModel):
     leads: list[LeadRead]
     trials: list[TrialActivityRead]
     content_tasks: list[ContentTaskRead]
+    automation_runs: list[AutomationRunRead]

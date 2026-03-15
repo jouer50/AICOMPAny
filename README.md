@@ -230,6 +230,13 @@ docker compose logs -f
   - `Generate Weekly Content Plan`
   - 有 key 时走 OpenAI 兼容接口
   - 没 key 或调用失败时自动回退规则生成
+- 机器人自动排班也已经接上：
+  - `AUTOMATION_SCHEDULE_ENABLED=true`
+  - `AUTOMATION_SCHEDULE_INTERVAL_MINUTES=1440`
+  - 开启后，`worker` 会按间隔自动触发 `Run Full Daily Ops`
+- 最近执行记录可以通过这些入口查看：
+  - `GET /api/v1/automation/runs`
+  - `/app` 里的 `Recent Automation Runs`
 - 新的生产化方向已经转向：`数据库 + API + worker`
 
 ## 改哪些文件

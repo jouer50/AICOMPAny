@@ -65,6 +65,12 @@ def test_llm_status_payload() -> None:
     assert "base_url" in payload
 
 
+def test_list_automation_runs_requires_auth() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/v1/automation/runs")
+    assert response.status_code == 401
+
+
 def test_dashboard_payload() -> None:
     with TestClient(app) as client:
         login(client)
@@ -73,6 +79,7 @@ def test_dashboard_payload() -> None:
     payload = response.json()
     assert payload["summary"]["lead_count"] >= 1
     assert len(payload["leads"]) >= 1
+    assert "automation_runs" in payload
 
 
 def test_app_page() -> None:
@@ -308,3 +315,23 @@ def test_trigger_daily_ops_job() -> None:
     job_payload = job_response.json()
     assert job_payload["task_id"] == payload["task_id"]
     assert job_payload["status"] in ("SUCCESS", "PENDING")
+
+
+def test_list_automation_runs() -> None:
+    with TestClient(app) as client:
+        login(client)
+        response = client.post("/api/v1/automation/daily-ops")
+        assert response.status_code == 200
+
+        runs_response = client.get("/api/v1/automation/runs")
+    assert runs_response.status_code == 200
+    runs = runs_response.json()
+    assert isinstance(runs, list)
+    assert len(runs) >= 1
+    assert runs[0]["run_type"] in {
+        "content_plan",
+        "lead_triage",
+        "trial_followup",
+        "sales_conversion",
+        "daily_ops",
+    }
