@@ -26,3 +26,25 @@ def test_app_page() -> None:
         response = client.get("/app")
     assert response.status_code == 200
     assert "Robot Company App" in response.text
+
+
+def test_create_lead() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/leads",
+            json={
+                "id": "lead_test_api",
+                "name": "测试线索",
+                "source": "API",
+                "stage": "warm",
+                "intent_score": 66,
+                "pain_points": [],
+                "last_action": "",
+                "next_best_action": "继续跟进",
+            },
+        )
+        if response.status_code == 409:
+            assert response.json()["detail"] == "Lead already exists"
+        else:
+            assert response.status_code == 201
+            assert response.json()["id"] == "lead_test_api"

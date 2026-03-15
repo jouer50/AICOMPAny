@@ -264,9 +264,50 @@ def build_live_app_html() -> str:
       font-weight: 700;
       cursor: pointer;
     }
+    .button.secondary {
+      background: #e8efe9;
+      color: #173e30;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+    .field label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .field input, .field select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: white;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .field.wide {
+      grid-column: 1 / -1;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
     .empty {
       color: var(--muted);
       font-size: 14px;
+    }
+    .status {
+      color: var(--muted);
+      font-size: 13px;
     }
     .footer-note {
       margin-top: 16px;
@@ -332,11 +373,46 @@ def build_live_app_html() -> str:
         <div class="task-list" id="task-list"></div>
       </div>
       <div class="card">
-        <h2 class="section-title">Notes</h2>
-        <div class="item">
-          <strong>Current Mode</strong>
-          <div class="muted">这个页面已经直接挂生产 API。下一步是把更多业务动作也切到数据库和 worker 上，而不是继续依赖 demo 输出。</div>
-        </div>
+        <h2 class="section-title">Create Lead</h2>
+        <form id="lead-form">
+          <div class="form-grid">
+            <div class="field">
+              <label for="lead-id">Lead ID</label>
+              <input id="lead-id" name="id" placeholder="lead_004" required>
+            </div>
+            <div class="field">
+              <label for="lead-name">Name</label>
+              <input id="lead-name" name="name" placeholder="A股纪律交易用户" required>
+            </div>
+            <div class="field">
+              <label for="lead-source">Source</label>
+              <input id="lead-source" name="source" placeholder="微信公众号" required>
+            </div>
+            <div class="field">
+              <label for="lead-stage">Stage</label>
+              <select id="lead-stage" name="stage">
+                <option value="warm">温线索</option>
+                <option value="trial">试用中</option>
+                <option value="hot">高意向</option>
+                <option value="cold">冷线索</option>
+                <option value="paid">已付费</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="lead-intent">Intent Score</label>
+              <input id="lead-intent" name="intent_score" type="number" min="0" max="100" value="70" required>
+            </div>
+            <div class="field wide">
+              <label for="lead-next">Next Action</label>
+              <input id="lead-next" name="next_best_action" placeholder="引导申请试用" required>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="button" type="submit">Create Lead</button>
+            <button class="button secondary" type="button" id="reload-button">Reload Dashboard</button>
+            <span class="status" id="form-status">Ready</span>
+          </div>
+        </form>
         <div class="footer-note">
           兼容页面仍保留在 <code>/dashboard</code>。生产页面入口是 <code>/app</code>。
         </div>
@@ -434,7 +510,49 @@ def build_live_app_html() -> str:
       }
     }
 
+    async function createLead(event) {
+      event.preventDefault();
+      const status = document.getElementById('form-status');
+      const form = event.currentTarget;
+      const payload = {
+        id: form.id.value.trim(),
+        name: form.name.value.trim(),
+        source: form.source.value.trim(),
+        stage: form.stage.value,
+        intent_score: Number(form.intent_score.value || 0),
+        next_best_action: form.next_best_action.value.trim(),
+        pain_points: [],
+        last_action: '',
+      };
+
+      status.textContent = 'Submitting...';
+      const response = await fetch('/api/v1/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        let detail = `Failed: ${response.status}`;
+        try {
+          const body = await response.json();
+          detail = body.detail || detail;
+        } catch (_) {
+        }
+        status.textContent = detail;
+        return;
+      }
+
+      status.textContent = 'Lead created';
+      form.reset();
+      form.stage.value = 'warm';
+      form.intent_score.value = '70';
+      await loadDashboard();
+    }
+
     document.getElementById('refresh-button').addEventListener('click', refreshDemo);
+    document.getElementById('reload-button').addEventListener('click', loadDashboard);
+    document.getElementById('lead-form').addEventListener('submit', createLead);
     loadDashboard().catch((error) => {
       document.getElementById('env-badge').textContent = 'Load Failed';
       document.getElementById('metric-grid').innerHTML = `<article class="card empty">${error.message}</article>`;
