@@ -230,3 +230,19 @@ def test_trigger_sales_conversion_job() -> None:
     job_payload = job_response.json()
     assert job_payload["task_id"] == payload["task_id"]
     assert job_payload["status"] in ("SUCCESS", "PENDING")
+
+
+def test_trigger_daily_ops_job() -> None:
+    with TestClient(app) as client:
+        login(client)
+        response = client.post("/api/v1/automation/daily-ops")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["task_id"]
+        assert payload["status"] in ("SUCCESS", "PENDING")
+
+        job_response = client.get(f"/api/v1/jobs/{payload['task_id']}")
+    assert job_response.status_code == 200
+    job_payload = job_response.json()
+    assert job_payload["task_id"] == payload["task_id"]
+    assert job_payload["status"] in ("SUCCESS", "PENDING")

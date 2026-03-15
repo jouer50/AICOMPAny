@@ -133,6 +133,10 @@ def generate_demo_outputs_task() -> str:
 
 @celery_app.task(name="robot_company.generate_weekly_content_plan")
 def generate_weekly_content_plan_task() -> dict:
+    return _run_weekly_content_plan()
+
+
+def _run_weekly_content_plan() -> dict:
     initialize_database()
     brief = _load_campaign_brief()
     plan = _build_weekly_content_plan(brief)
@@ -150,6 +154,10 @@ def generate_weekly_content_plan_task() -> dict:
 
 @celery_app.task(name="robot_company.triage_leads")
 def triage_leads_task() -> dict:
+    return _run_lead_triage()
+
+
+def _run_lead_triage() -> dict:
     initialize_database()
     updated = 0
     with SessionLocal() as db:
@@ -167,6 +175,10 @@ def triage_leads_task() -> dict:
 
 @celery_app.task(name="robot_company.generate_trial_followup")
 def generate_trial_followup_task() -> dict:
+    return _run_trial_followup()
+
+
+def _run_trial_followup() -> dict:
     initialize_database()
     updated = 0
     with SessionLocal() as db:
@@ -182,6 +194,10 @@ def generate_trial_followup_task() -> dict:
 
 @celery_app.task(name="robot_company.generate_sales_conversion")
 def generate_sales_conversion_task() -> dict:
+    return _run_sales_conversion()
+
+
+def _run_sales_conversion() -> dict:
     initialize_database()
     updated = 0
     with SessionLocal() as db:
@@ -196,6 +212,21 @@ def generate_sales_conversion_task() -> dict:
             updated += 1
         db.commit()
     return {"status": "sales_conversion_generated", "lead_count": updated}
+
+
+@celery_app.task(name="robot_company.run_full_daily_ops")
+def run_full_daily_ops_task() -> dict:
+    content_result = _run_weekly_content_plan()
+    triage_result = _run_lead_triage()
+    followup_result = _run_trial_followup()
+    sales_result = _run_sales_conversion()
+    return {
+        "status": "daily_ops_completed",
+        "content_task_count": content_result.get("content_task_count", 0),
+        "triaged_leads": triage_result.get("lead_count", 0),
+        "followup_trials": followup_result.get("trial_count", 0),
+        "sales_leads": sales_result.get("lead_count", 0),
+    }
 
 
 def run_worker() -> None:
