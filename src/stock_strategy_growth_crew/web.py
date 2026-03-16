@@ -517,6 +517,10 @@ def build_live_app_html() -> str:
           <div class="muted">现在 `/app` 已经有四类真实写操作，再加上四条单独机器人任务、一条总调度任务，以及自动值班调度。</div>
         </div>
         <div class="item">
+          <strong>LLM Status</strong>
+          <div class="muted" id="llm-status">Loading model status...</div>
+        </div>
+        <div class="item">
           <strong>Recent Automation Runs</strong>
           <div id="run-list" class="trial-list"><div class="empty">No automation runs yet.</div></div>
         </div>
@@ -595,6 +599,52 @@ def build_live_app_html() -> str:
       `;
     }
 
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function formatRunDetails(run) {
+      let parsed = null;
+      if (run.result_json) {
+        try {
+          parsed = JSON.parse(run.result_json);
+        } catch (_) {
+        }
+      }
+
+      const lines = [];
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.status) lines.push(`status: ${parsed.status}`);
+        if (parsed.mode) lines.push(`mode: ${parsed.mode}`);
+        if (parsed.content_task_count != null) lines.push(`content: ${parsed.content_task_count}`);
+        if (parsed.lead_count != null) lines.push(`leads: ${parsed.lead_count}`);
+        if (parsed.trial_count != null) lines.push(`trials: ${parsed.trial_count}`);
+        if (parsed.triaged_leads != null) lines.push(`triaged: ${parsed.triaged_leads}`);
+        if (parsed.followup_trials != null) lines.push(`followups: ${parsed.followup_trials}`);
+        if (parsed.sales_leads != null) lines.push(`sales: ${parsed.sales_leads}`);
+        if (parsed.channels && Array.isArray(parsed.channels)) lines.push(`channels: ${parsed.channels.join(', ')}`);
+        if (parsed.fallback_reason) lines.push(`fallback: ${parsed.fallback_reason}`);
+      }
+
+      if (run.error_message) {
+        lines.push(`error: ${run.error_message}`);
+      }
+
+      if (!lines.length && run.result_json) {
+        lines.push(run.result_json);
+      }
+      if (!lines.length) {
+        lines.push('No details yet.');
+      }
+
+      return lines.map((line) => `<div class="muted">${escapeHtml(line)}</div>`).join('');
+    }
+
     function renderDashboard(payload) {
       const summary = payload.summary;
       document.getElementById('env-badge').textContent = 'API Connected';
@@ -654,7 +704,7 @@ def build_live_app_html() -> str:
               <strong>${run.run_type}</strong>
               <small>${run.trigger_source} · ${run.status} · ${run.mode}</small>
               <div class="muted">task_id: ${run.task_id}</div>
-              <div class="muted">${run.error_message || run.result_json || 'No details yet.'}</div>
+              ${formatRunDetails(run)}
             </article>
           `).join('')
         : '<div class="empty">No automation runs yet.</div>';
@@ -675,6 +725,19 @@ def build_live_app_html() -> str:
       }
       const payload = await response.json();
       renderDashboard(payload);
+    }
+
+    async function loadLlmStatus() {
+      const response = await fetch('/api/v1/llm/status', { cache: 'no-store' });
+      const node = document.getElementById('llm-status');
+      if (!response.ok) {
+        node.textContent = `Failed to load model status: ${response.status}`;
+        return;
+      }
+      const payload = await response.json();
+      node.textContent = payload.configured
+        ? `Connected · ${payload.provider} · ${payload.model} · ${payload.base_url}`
+        : `Not configured · ${payload.provider} · fallback to rules mode`;
     }
 
     async function refreshDemo() {
@@ -1018,7 +1081,7 @@ def build_live_app_html() -> str:
     document.getElementById('followup-button').addEventListener('click', generateTrialFollowup);
     document.getElementById('sales-button').addEventListener('click', runSalesConversion);
     document.getElementById('daily-ops-button').addEventListener('click', runFullDailyOps);
-    loadDashboard().catch((error) => {
+    Promise.all([loadDashboard(), loadLlmStatus()]).catch((error) => {
       document.getElementById('env-badge').textContent = 'Load Failed';
       document.getElementById('metric-grid').innerHTML = `<article class="card empty">${error.message}</article>`;
     });
